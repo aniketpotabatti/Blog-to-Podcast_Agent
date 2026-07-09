@@ -5,7 +5,7 @@ A Streamlit web application that seamlessly transforms blog posts into AI-narrat
 This script orchestrates web scraping, AI summarization, and Text-to-Speech synthesis.
 
 Author: Aniket Potabatti (@aniketpotabatti)
-Created: December 31, 2025
+Created: Aug 2025
 License: MIT License
 """
 
