@@ -90,3 +90,79 @@ Ensure you have Python 3.9+ installed. You will also need API keys for the follo
 ## 📄 License
 
 This project is licensed under the MIT License.
+
+---
+<!--
+## 🛣️ Future Roadmap & Feature Suggestions
+
+To build a truly robust, scalable, and production-grade "Blog to Podcast" agent suited for 2026 and beyond, consider the following roadmap items and improvements:
+
+### Scalability & Deployment
+- Deploy on cloud platforms for better performance and scalability (Docker, Kubernetes, serverless).
+- Add multi-user support and secure authentication.
+- Store podcasts and user data in the cloud (e.g., AWS S3).
+
+### AI & Content Quality
+- Support multiple summarization models (OpenAI, Cohere, Anthropic).
+- Let users pick voice, language, and style; offer custom voice features.
+- Automatically filter out ads or irrelevant content from blogs.
+
+### Reliability & Security
+- Add error handling, monitoring, and alerts (Sentry, Datadog).
+- Implement API rate limits and user quotas.
+- Ensure strong privacy (e.g., GDPR support, secure key storage).
+
+### Better UI/UX
+- Make the UI mobile-friendly.
+- Allow users to edit podcasts before generation.
+- Add an analytics dashboard with podcast stats.
+
+### Integrations & Extensibility
+- Provide an API or SDK for automation and integrations (Zapier, Make.com).
+- Publish podcasts to CMS platforms or via RSS feeds.
+- Integrate with platforms like Spotify or YouTube for sharing.
+
+### Continuous Improvement
+- Keep AI models and tools up to date.
+- Gather feedback to improve results.
+- Expand support to newsletters, PDFs, and other media types.
+
+---
+
+**Best features to add next:**
+- In-browser podcast editing.
+- Scheduled or batch podcast creation.
+- Voice personalization (selection, cloning, and custom voices).
+- Real-time collaboration and sharing options.
+
+- Session-state caching and safeguards to prevent duplicate paid API calls.
+- URL validation and duplicate-click protection to avoid wasted API credits.
+- Pinned and cleaned dependencies for reproducible builds.
+- Structured logging and `.gitignore` for easier debugging and safe development.
+- Retry logic with exponential backoff for handling temporary API errors.
+- Long-text chunking and audio stitching to work around length limits.
+- Clear error categories for actionable feedback (auth, rate-limit, paywall, unsupported URLs).
+- Live progress stepper to show pipeline stages.
+- Central config module for all IDs and parameters.
+- Automated unit tests and GitHub Actions CI.
+- Voice/language picker and adjustment sliders to support global, personalized podcasts.
+- Podcast style presets (solo, interview, news, etc.).
+- Script editing before voice synthesis for maximum control.
+- Show notes and podcast metadata support.
+- Ad and boilerplate detection and filtering.
+- API/automation wrapper for integrations (Zapier, Make.com, RSS, etc.).
+- Object storage and RSS/episode feed generation.
+- Docker support and anti-bot fallback for tough-to-scrape sites.
+- Async background jobs, quotas, and rate limits for scaling to more users.
+-->
+- PDF/research paper ingestion, not just blogs.
+- RSS feed monitoring for automatic podcast creation.
+- Multilingual podcast support.
+- Multi-host/AI dialogue generation for conversational episodes.
+- Background music (intro/outro/underlay).
+- Automatic episode title and description generation.
+- One-click publishing to Spotify, YouTube, and other podcast platforms.
+
+---
+
+With these improvements, the project can become a robust, scalable, and user-friendly AI podcast generator ready for a wide range of use cases.

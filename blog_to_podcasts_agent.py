@@ -1,21 +1,31 @@
 """
-Blog to Podcast Agent
-=====================
-A Streamlit web application that seamlessly transforms blog posts into AI-narrated podcasts.
-This script orchestrates web scraping, AI summarization, and Text-to-Speech synthesis.
+Blog to Podcast Agent — Streamlit UI
+====================================
+A Streamlit web application that transforms blog posts, PDFs and RSS feeds into
+AI-narrated, music-bedded podcasts ready to publish.
+
+Built on the ``podcast`` package which provides the full pipeline:
+ingestion, script generation, TTS synthesis, audio mixing and publishing.
 
 Author: Aniket Potabatti (@aniketpotabatti)
 Created: Aug 2025
 License: MIT License
 """
 
+from __future__ import annotations
+
 import os
-from agno.agent import Agent
-from agno.run.agent import RunOutput
-from agno.models.google import Gemini
-from agno.tools.firecrawl import FirecrawlTools
-from elevenlabs import ElevenLabs
+from typing import List
+
 import streamlit as st
+
+from podcast import config
+from podcast.errors import PodcastError
+from podcast.models import Host
+from podcast.pipeline import PodcastPipeline, build_options
+from podcast.utils import setup_logging
+
+setup_logging()
 
 # ─────────────────────────────────────────────
 #  Page config
@@ -25,385 +35,820 @@ st.set_page_config(
     page_icon="🎙️",
     layout="centered",
 )
-
 # ─────────────────────────────────────────────
 #  Custom CSS – dark glassmorphism theme
 # ─────────────────────────────────────────────
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+st.markdown("""<style>
+/* ════════════════════════════════════════════════════════════
+   Blog to Podcast · Design system
+   Palette : indigo night · violet → fuchsia accent
+   Type    : Inter 300–800 · 8px spacing rhythm
+   ════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-/* ── Global reset ── */
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
+:root {
+    --bg-0: #0b0a1f;
+    --bg-1: #131034;
+    --bg-2: #0a1626;
+    --surface: rgba(255, 255, 255, 0.045);
+    --surface-strong: rgba(255, 255, 255, 0.075);
+    --line: rgba(255, 255, 255, 0.09);
+    --line-strong: rgba(255, 255, 255, 0.17);
+    --text-hi: #f4f2ff;
+    --text-mid: rgba(244, 242, 255, 0.62);
+    --text-lo: rgba(244, 242, 255, 0.40);
+    --accent: #a78bfa;
+    --accent-2: #e879f9;
+    --accent-soft: rgba(167, 139, 250, 0.16);
+    --radius-lg: 22px;
+    --radius-md: 16px;
+    --radius-sm: 12px;
 }
 
-/* ── App background ── */
+/* ── Base & typography ── */
+html, body, [class*="css"], .stApp, .stApp p, .stApp li {
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0.01em;
+}
 .stApp {
-    background: linear-gradient(135deg, #0f0c29 0%, #1a1040 50%, #0d1b2a 100%);
+    color: var(--text-hi);
+    background:
+        radial-gradient(900px 520px at 85% -12%, rgba(167, 139, 250, 0.16), transparent 62%),
+        radial-gradient(720px 420px at -12% 112%, rgba(232, 121, 249, 0.10), transparent 60%),
+        linear-gradient(140deg, var(--bg-0) 0%, var(--bg-1) 52%, var(--bg-2) 100%);
     min-height: 100vh;
 }
+.stApp p, .stApp li { color: var(--text-mid); line-height: 1.6; }
+.stApp strong { color: var(--text-hi); font-weight: 600; }
+.stApp a { color: #c4b5fd; text-decoration: none; }
 
-/* ── Hide Streamlit chrome ── */
+/* ── Chrome ── */
 #MainMenu, footer, header { visibility: hidden; }
 .block-container {
-    padding-top: 2rem;
-    padding-bottom: 4rem;
-    max-width: 760px;
+    padding-top: 2.2rem;
+    padding-bottom: 3.2rem;
+    max-width: 880px;
 }
 
-/* ── Hero card ── */
+/* ── Section labels (left-aligned, tracked) ── */
+.section-label {
+    font-size: 0.70rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-lo);
+    margin: 0 0 0.55rem;
+    text-align: left;
+}
+
+/* ── Hero ── */
 .hero-card {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.10);
-    border-radius: 24px;
-    padding: 2.5rem 2.5rem 2rem;
-    margin-bottom: 2rem;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
     text-align: center;
+    padding: 2.6rem 2.4rem 2.2rem;
+    margin: 0 auto 0.9rem;
+    border-radius: var(--radius-lg);
+    background:
+        linear-gradient(rgba(19, 16, 52, 0.72), rgba(19, 16, 52, 0.72)) padding-box,
+        linear-gradient(135deg, rgba(167, 139, 250, 0.55), rgba(232, 121, 249, 0.35), rgba(103, 232, 249, 0.25)) border-box;
+    border: 1px solid transparent;
+    box-shadow: 0 24px 60px rgba(4, 2, 20, 0.55);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 }
 .hero-icon {
-    font-size: 3.2rem;
+    font-size: 3rem;
     line-height: 1;
-    margin-bottom: 0.6rem;
+    margin-bottom: 0.7rem;
+    filter: drop-shadow(0 6px 18px rgba(167, 139, 250, 0.45));
 }
 .hero-title {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #ffffff;
-    letter-spacing: -0.5px;
-    margin: 0 0 0.4rem;
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.5rem;
+    background: linear-gradient(100deg, #ffffff 0%, #d8ccff 55%, #f5d0fe 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 .hero-sub {
-    font-size: 0.95rem;
-    color: rgba(255,255,255,0.50);
-    margin: 0;
+    font-size: 0.98rem;
     font-weight: 400;
+    color: var(--text-mid);
+    margin: 0 auto 1.15rem;
+    max-width: 560px;
+    line-height: 1.55;
 }
 
-/* ── Section label ── */
-.section-label {
+/* ── Feature pills (centered chips) ── */
+.hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem;
+}
+.pill {
+    display: inline-block;
     font-size: 0.72rem;
     font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.35);
-    margin-bottom: 0.4rem;
+    letter-spacing: 0.02em;
+    color: #ddd6fe;
+    background: rgba(167, 139, 250, 0.12);
+    border: 1px solid rgba(167, 139, 250, 0.28);
+    border-radius: 999px;
+    padding: 0.28rem 0.75rem;
+    white-space: nowrap;
 }
 
-/* ── URL input override ── */
-.stTextInput > div > div > input {
-    background: rgba(255,255,255,0.06) !important;
-    border: 1px solid rgba(255,255,255,0.12) !important;
-    border-radius: 14px !important;
-    color: #ffffff !important;
-    font-size: 0.95rem !important;
-    padding: 0.75rem 1.1rem !important;
-    transition: border-color 0.2s;
+/* ── Text inputs & areas ── */
+.stTextInput input, .stTextArea textarea {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-hi) !important;
+    font-size: 0.94rem !important;
+    padding: 0.72rem 1rem !important;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
-.stTextInput > div > div > input:focus {
-    border-color: rgba(139, 92, 246, 0.70) !important;
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15) !important;
+.stTextInput input:focus, .stTextArea textarea:focus {
+    border-color: rgba(167, 139, 250, 0.65) !important;
+    box-shadow: 0 0 0 3px var(--accent-soft) !important;
+    outline: none !important;
 }
-.stTextInput > div > div > input::placeholder {
-    color: rgba(255,255,255,0.25) !important;
-}
-.stTextInput label {
-    color: rgba(255,255,255,0.60) !important;
-    font-size: 0.85rem !important;
-    font-weight: 500 !important;
+.stTextInput input::placeholder, .stTextArea textarea::placeholder {
+    color: var(--text-lo) !important;
 }
 
-/* ── Generate button ── */
+/* ── Selects & multiselect ── */
+.stSelectbox > div > div, .stMultiSelect > div > div {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius-sm) !important;
+    transition: border-color 0.18s ease;
+}
+.stSelectbox > div > div:hover, .stMultiSelect > div > div:hover {
+    border-color: var(--line-strong) !important;
+}
+.stSelectbox span, .stMultiSelect span {
+    color: var(--text-hi) !important;
+    font-size: 0.94rem !important;
+}
+.stMultiSelect span[data-baseweb="tag"] {
+    background: var(--accent-soft) !important;
+    border: 1px solid rgba(167, 139, 250, 0.35) !important;
+    color: #e9d5ff !important;
+    border-radius: 8px !important;
+}
+
+/* ── File uploader ── */
+.stFileUploader > div > div > div > div {
+    background: var(--surface) !important;
+    border: 1.5px dashed var(--line-strong) !important;
+    border-radius: var(--radius-md) !important;
+    padding: 2rem !important;
+    text-align: center !important;
+    transition: all 0.18s ease;
+}
+.stFileUploader > div > div > div > div:hover {
+    border-color: rgba(167, 139, 250, 0.55) !important;
+    background: var(--surface-strong) !important;
+}
+.stFileUploader span, .stFileUploader small { color: var(--text-mid) !important; }
+
+/* ── Radio as soft chips ── */
+[role="radiogroup"] {
+    gap: 0.4rem !important;
+}
+[role="radiogroup"] label {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.32rem 0.8rem 0.32rem 0.55rem;
+    transition: all 0.18s ease;
+}
+[role="radiogroup"] label:hover {
+    border-color: var(--line-strong);
+    background: var(--surface-strong);
+}
+[role="radiogroup"] label p, [role="radiogroup"] label span {
+    color: var(--text-mid) !important;
+    font-size: 0.9rem !important;
+}
+
+/* ── Checkbox ── */
+.stCheckbox span { color: var(--text-mid) !important; font-size: 0.9rem; }
+
+/* ── Slider ── */
+.stSlider [role="slider"] {
+    background: #ffffff !important;
+    border: 3px solid rgba(167, 139, 250, 0.9) !important;
+}
+.stSlider [data-baseweb="slider"] > div {
+    background: var(--accent-soft) !important;
+}
+.stSlider span { color: var(--text-mid) !important; font-size: 0.85rem; }
+
+/* ── Expanders (glass cards) ── */
+[data-testid="stExpander"] {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius-md) !important;
+    overflow: hidden;
+}
+[data-testid="stExpander"] summary {
+    font-weight: 600 !important;
+    color: var(--text-hi) !important;
+}
+[data-testid="stExpander"] summary:hover { color: #ddd6fe !important; }
+
+/* ── Tabs (pill navigation) ── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.4rem;
+}
+.stTabs [data-baseweb="tab"] {
+    background: var(--surface) !important;
+    border: 1px solid transparent;
+    border-radius: 999px !important;
+    padding: 0.45rem 1.15rem !important;
+    transition: all 0.18s ease;
+}
+.stTabs [data-baseweb="tab"] p {
+    font-size: 0.9rem !important;
+    font-weight: 600;
+    color: var(--text-mid) !important;
+}
+.stTabs [data-baseweb="tab"]:hover { background: var(--surface-strong) !important; }
+.stTabs [aria-selected="true"] {
+    background: var(--accent-soft) !important;
+    border-color: rgba(167, 139, 250, 0.45);
+}
+.stTabs [aria-selected="true"] p { color: var(--text-hi) !important; }
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab-border"] { display: none; }
+
+/* ── Buttons ── */
 .stButton > button {
-    width: 100% !important;
-    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%) !important;
+    border-radius: var(--radius-sm) !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+    padding: 0.62rem 1.4rem !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.stButton > button[kind="primary"] {
+    background: linear-gradient(120deg, #8b5cf6 0%, #a855f7 55%, #d946ef 100%) !important;
     color: #ffffff !important;
     border: none !important;
-    border-radius: 14px !important;
-    padding: 0.8rem 2rem !important;
-    font-size: 1rem !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.02em !important;
-    transition: opacity 0.2s, transform 0.15s !important;
-    cursor: pointer !important;
-    margin-top: 0.5rem;
+    box-shadow: 0 10px 26px rgba(139, 92, 246, 0.35);
 }
-.stButton > button:hover:not([disabled]) {
-    opacity: 0.88 !important;
-    transform: translateY(-1px) !important;
+.stButton > button[kind="primary"]:hover {
+    transform: translateY(-1.5px);
+    filter: brightness(1.06);
+    box-shadow: 0 14px 32px rgba(139, 92, 246, 0.45);
 }
-.stButton > button[disabled] {
-    opacity: 0.35 !important;
-    cursor: not-allowed !important;
+.stButton > button:not([kind="primary"]) {
+    background: var(--surface) !important;
+    color: var(--text-hi) !important;
+    border: 1px solid var(--line) !important;
+}
+.stButton > button:not([kind="primary"]):hover {
+    border-color: var(--line-strong) !important;
+    transform: translateY(-1.5px);
 }
 
-/* ── Download button ── */
+/* ── Download button (full-width ghost) ── */
 .stDownloadButton > button {
-    background: rgba(255,255,255,0.07) !important;
-    color: rgba(255,255,255,0.80) !important;
-    border: 1px solid rgba(255,255,255,0.12) !important;
-    border-radius: 12px !important;
-    font-size: 0.88rem !important;
-    font-weight: 500 !important;
-    padding: 0.55rem 1.2rem !important;
-    transition: background 0.2s !important;
+    width: 100%;
+    border-radius: var(--radius-sm) !important;
+    font-weight: 700 !important;
+    background: var(--surface-strong) !important;
+    color: var(--text-hi) !important;
+    border: 1px solid rgba(167, 139, 250, 0.4) !important;
+    transition: all 0.15s ease;
 }
 .stDownloadButton > button:hover {
-    background: rgba(255,255,255,0.12) !important;
+    border-color: rgba(167, 139, 250, 0.75) !important;
+    transform: translateY(-1.5px);
 }
 
-/* ── Spinner text ── */
-.stSpinner > div { color: rgba(255,255,255,0.60) !important; }
-
-/* ── Result card ── */
-.result-card {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(139, 92, 246, 0.25);
-    border-radius: 20px;
-    padding: 1.8rem;
-    margin-top: 1.5rem;
+/* ── Metrics (stat cards) ── */
+[data-testid="stMetric"] {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1.05rem 0.7rem;
 }
-.result-title {
-    font-size: 0.72rem;
-    font-weight: 600;
+[data-testid="stMetricLabel"] p, [data-testid="stMetricLabel"] {
+    font-size: 0.66rem !important;
+    font-weight: 700 !important;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #a78bfa;
-    margin-bottom: 1rem;
+    color: var(--text-lo) !important;
+}
+[data-testid="stMetricValue"] {
+    font-size: 1.35rem !important;
+    font-weight: 700 !important;
+    color: var(--text-hi) !important;
+}
+
+/* ── Status widget ── */
+[data-testid="stStatusWidget"] {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+}
+
+/* ── Result card (gradient border) ── */
+.result-card {
+    text-align: center;
+    padding: 1.8rem 1.6rem;
+    margin-top: 1.4rem;
+    border-radius: var(--radius-lg);
+    background:
+        linear-gradient(rgba(19, 16, 52, 0.72), rgba(19, 16, 52, 0.72)) padding-box,
+        linear-gradient(135deg, rgba(167, 139, 250, 0.5), rgba(232, 121, 249, 0.3)) border-box;
+    border: 1px solid transparent;
+    box-shadow: 0 18px 44px rgba(4, 2, 20, 0.45);
+}
+.result-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-hi);
+    margin: 0 0 0.4rem;
+    letter-spacing: -0.01em;
 }
 
 /* ── Audio player ── */
-.stAudio {
-    border-radius: 12px;
+.stAudio, .stAudio > div {
+    border-radius: var(--radius-md) !important;
     overflow: hidden;
 }
-audio {
-    width: 100%;
-    border-radius: 12px;
-    background: transparent;
+
+/* ── Sidebar panel ── */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, rgba(16, 13, 44, 0.96), rgba(11, 10, 31, 0.96));
+    border-right: 1px solid var(--line);
+}
+section[data-testid="stSidebar"] hr {
+    border-color: var(--line) !important;
+    margin: 1.1rem 0;
+}
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {
+    font-size: 0.72rem !important;
+    color: var(--text-lo) !important;
+    line-height: 1.5;
 }
 
-/* ── Expander (summary) ── */
-.stExpander {
-    background: rgba(255,255,255,0.03) !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-radius: 14px !important;
-    margin-top: 1rem;
-}
-.stExpander summary {
-    color: rgba(255,255,255,0.55) !important;
-    font-size: 0.88rem !important;
-    font-weight: 500 !important;
-}
-.stExpander p {
-    color: rgba(255,255,255,0.75) !important;
-    font-size: 0.93rem !important;
-    line-height: 1.7 !important;
-}
-
-/* ── Alerts ── */
-.stSuccess, .stWarning, .stError, .stInfo {
-    border-radius: 14px !important;
-    font-size: 0.90rem !important;
-}
-
-/* ── Sidebar ── */
-[data-testid="stSidebar"] {
-    background: rgba(15, 12, 41, 0.92) !important;
-    border-right: 1px solid rgba(255,255,255,0.07) !important;
-}
-[data-testid="stSidebar"] .stTextInput > div > div > input {
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px solid rgba(255,255,255,0.10) !important;
-    border-radius: 10px !important;
-    color: #fff !important;
-    font-size: 0.88rem !important;
-}
-[data-testid="stSidebar"] label {
-    color: rgba(255,255,255,0.55) !important;
-    font-size: 0.82rem !important;
-}
-.sidebar-header {
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.28);
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
-}
-.key-status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.80rem;
-    color: rgba(255,255,255,0.40);
-    margin-top: 1.2rem;
-}
-.dot-ok  { width:7px; height:7px; border-radius:50%; background:#34d399; display:inline-block; }
-.dot-bad { width:7px; height:7px; border-radius:50%; background:#6b7280; display:inline-block; }
-
-/* ── Step badges ── */
-.steps-row {
-    display: flex;
-    gap: 0.6rem;
-    margin: 1.4rem 0 1rem;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-.step-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.09);
-    border-radius: 100px;
-    padding: 0.35rem 0.85rem;
+/* ── Centered footer ── */
+.app-footer {
+    text-align: center;
     font-size: 0.78rem;
-    color: rgba(255,255,255,0.45);
-    font-weight: 500;
+    color: var(--text-lo);
+    padding-top: 0.4rem;
 }
-.step-badge span { font-size: 0.85rem; }
-</style>
-""", unsafe_allow_html=True)
+.app-footer strong { color: var(--text-mid); font-weight: 600; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: rgba(167, 139, 250, 0.25);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(167, 139, 250, 0.45);
+    background-clip: content-box;
+}
+
+/* ── Mobile ── */
+@media (max-width: 640px) {
+    .block-container { padding-left: 1rem; padding-right: 1rem; }
+    .hero-card { padding: 1.7rem 1.1rem 1.4rem; }
+    .hero-title { font-size: 1.6rem; }
+    .hero-sub { font-size: 0.9rem; }
+    .stTabs [data-baseweb="tab"] { padding: 0.4rem 0.8rem !important; }
+    .stTabs [data-baseweb="tab"] p { font-size: 0.8rem !important; }
+}
+</style>""", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
-#  Sidebar – API Keys
+#  Hero section
 # ─────────────────────────────────────────────
-with st.sidebar:
-    st.markdown('<div class="sidebar-header">🔑 API Keys</div>', unsafe_allow_html=True)
-    gemini_key      = st.text_input("Gemini API Key",      type="password", placeholder="AIza…")
-    elevenlabs_key  = st.text_input("ElevenLabs API Key",  type="password", placeholder="sk_…")
-    firecrawl_key   = st.text_input("Firecrawl API Key",   type="password", placeholder="fc-…")
-
-    # Live key status indicators
-    def dot(ok): return f'<span class="{"dot-ok" if ok else "dot-bad"}"></span>'
-    st.markdown(f"""
-    <div style="margin-top:1.4rem;">
-      <div class="key-status">{dot(bool(gemini_key))} Gemini</div>
-      <div class="key-status">{dot(bool(elevenlabs_key))} ElevenLabs</div>
-      <div class="key-status">{dot(bool(firecrawl_key))} Firecrawl</div>
+st.markdown(
+    """
+    <div class="hero-card">
+        <div class="hero-icon">🎙️</div>
+        <div class="hero-title">Blog to Podcast · AI Agent</div>
+        <div class="hero-sub">Turn any article into a studio-quality podcast in seconds</div>
+        <div class="hero-badges">
+            <span class="pill">🌐 URL · PDF · RSS</span>
+            <span class="pill">🧠 Solo &amp; two-host scripts</span>
+            <span class="pill">🌍 15 languages</span>
+            <span class="pill">🎙️ Multi-voice dialogue</span>
+            <span class="pill">🎵 Music beds</span>
+            <span class="pill">🏷️ Auto titles</span>
+            <span class="pill">🚀 One-click publish</span>
+        </div>
     </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("""
-    <div style="font-size:0.75rem; color:rgba(255,255,255,0.25); line-height:1.6;">
-    Keys are used only during this session and are never stored.
-    </div>
-    """, unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────
-#  Main – Hero
-# ─────────────────────────────────────────────
-st.markdown("""
-<div class="hero-card">
-  <div class="hero-icon">🎙️</div>
-  <h1 class="hero-title">Blog to Podcast</h1>
-  <p class="hero-sub">Transform any blog post into an AI-narrated podcast in seconds.</p>
-  <div class="steps-row">
-    <div class="step-badge"><span>🔗</span> Paste URL</div>
-    <div class="step-badge"><span>🤖</span> AI Summary</div>
-    <div class="step-badge"><span>🔊</span> Voice Synthesis</div>
-    <div class="step-badge"><span>⬇️</span> Download</div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────
-#  URL Input
-# ─────────────────────────────────────────────
-st.markdown('<div class="section-label">Blog URL</div>', unsafe_allow_html=True)
-url = st.text_input(
-    label="blog_url",
-    label_visibility="collapsed",
-    placeholder="https://example.com/your-blog-post",
-    value="",
+    """,
+    unsafe_allow_html=True,
 )
 
 # ─────────────────────────────────────────────
-#  Generate button
+#  Helpers
 # ─────────────────────────────────────────────
-keys_ready = all([gemini_key, elevenlabs_key, firecrawl_key])
-if not keys_ready:
-    st.caption("⬅️  Enter all three API keys in the sidebar to unlock generation.")
+def env_key(name: str) -> str:
+    """Read an API key from the environment as a sidebar default."""
+    return os.environ.get(name, "")
 
-clicked = st.button("✨ Generate Podcast", disabled=not keys_ready)
 
-# ─────────────────────────────────────────────
-#  Processing
-# ─────────────────────────────────────────────
-if clicked:
-    if not url.strip():
-        st.warning("Please enter a blog URL to continue.")
+def init_session() -> None:
+    """Make sure every piece of session state exists before use."""
+    defaults = {
+        "article": None,      # Article | None
+        "episode": None,      # EpisodeResult | None
+        "feed_entries": [],   # list[FeedEntry]
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def voice_label(voice) -> str:
+    """Human readable label for a configured voice."""
+    return f"{voice.name} — {voice.description}"
+
+
+def voice_id_from_label(label: str) -> str:
+    """Map a selected voice label back to its ElevenLabs voice id."""
+    for voice in config.VOICES:
+        if voice_label(voice) == label:
+            return voice.voice_id
+    return config.DEFAULT_VOICE_ID
+
+
+def build_hosts(style_key: str, first_id: str, second_id: str = "") -> List[Host]:
+    """Create Host entries for a style, filling any gaps with defaults."""
+    defaults = config.default_hosts(style_key)
+    picked = [first_id, second_id]
+    hosts: List[Host] = []
+    for index, default_voice in enumerate(defaults):
+        voice_id = default_voice.voice_id
+        if index < len(picked) and picked[index]:
+            voice_id = picked[index]
+        hosts.append(Host(name=default_voice.name, voice_id=voice_id))
+    return hosts
+
+
+def make_pipeline(keys: dict, status) -> PodcastPipeline:
+    """Create a pipeline wired to the sidebar keys and a status indicator."""
+
+    def progress(stage: str, detail: str = "") -> None:
+        label = f"{stage}…" if not detail else f"{stage} · {detail}"
+        status.update(label=label, state="running")
+
+    return PodcastPipeline(
+        gemini_api_key=keys.get("gemini", ""),
+        firecrawl_api_key=keys.get("firecrawl", ""),
+        elevenlabs_api_key=keys.get("elevenlabs", ""),
+        progress=progress,
+    )
+
+
+def sidebar_keys() -> dict:
+    """Collect the three provider keys, defaulting to environment values."""
+    gemini = st.text_input(
+        "Google Gemini",
+        value=env_key("GEMINI_API_KEY"),
+        type="password",
+        help="Scripts & metadata — aistudio.google.com/apikey",
+    )
+    firecrawl = st.text_input(
+        "Firecrawl",
+        value=env_key("FIRECRAWL_API_KEY"),
+        type="password",
+        help="Article scraping — firecrawl.dev",
+    )
+    elevenlabs = st.text_input(
+        "ElevenLabs",
+        value=env_key("ELEVENLABS_API_KEY"),
+        type="password",
+        help="Speech & music — elevenlabs.io",
+    )
+    keys_ok = all([gemini.strip(), firecrawl.strip(), elevenlabs.strip()])
+    if keys_ok:
+        st.markdown('<div class="section-label">✅ All keys detected</div>',
+                    unsafe_allow_html=True)
     else:
-        with st.spinner("Scraping blog and synthesising audio — this takes ~20 s…"):
-            try:
-                # Set env keys
-                os.environ["GEMINI_API_KEY"]    = gemini_key
-                os.environ["FIRECRAWL_API_KEY"] = firecrawl_key
+        st.markdown('<div class="section-label">⚠️ All three keys are required</div>',
+                    unsafe_allow_html=True)
+    return {
+        "gemini": gemini.strip(),
+        "firecrawl": firecrawl.strip(),
+        "elevenlabs": elevenlabs.strip(),
+        "ok": keys_ok,
+    }
 
-                # ── Step 1 : Summarise ──────────────────────────
-                agent = Agent(
-                    name="Blog Summarizer",
-                    model=Gemini(id="gemini-2.5-flash"),
-                    tools=[FirecrawlTools()],
-                    instructions=[
-                        "Scrape the blog URL and create a concise, engaging summary "
-                        "(max 2000 characters) suitable for a podcast.",
-                        "The summary should be conversational and capture the main points.",
-                    ],
-                )
-                response: RunOutput = agent.run(
-                    f"Scrape and summarize this blog for a podcast: {url}"
-                )
-                summary = response.content if hasattr(response, "content") else str(response)
 
-                if not summary:
-                    st.error("Could not generate a summary. Please try a different URL.")
-                    st.stop()
+SOURCES = {"🌐 URL": "url", "📄 PDF": "pdf", "📡 RSS entry": "rss"}
 
-                # ── Step 2 : TTS ────────────────────────────────
-                client = ElevenLabs(api_key=elevenlabs_key)
-                try:
-                    audio_generator = client.text_to_speech.convert(
-                        text=summary,
-                        voice_id="JBFqnCBsd6RMkjVDRZzb",
-                        model_id="eleven_turbo_v2_5",
+init_session()
+
+# ─────────────────────────────────────────────
+#  Sidebar – credentials & episode settings
+# ─────────────────────────────────────────────
+with st.sidebar:
+    st.markdown('<div class="section-label">🔑 API keys</div>', unsafe_allow_html=True)
+    keys = sidebar_keys()
+
+    st.divider()
+    st.markdown('<div class="section-label">🎚️ Episode settings</div>', unsafe_allow_html=True)
+    style_label = st.selectbox(
+        "Podcast style", list(config.STYLE_LABELS),
+        help="Dialogue styles write a two-host conversation",
+    )
+    language_label = st.selectbox("Language", list(config.LANGUAGE_LABELS))
+    style = config.get_style(style_label)
+
+    voice_labels = [voice_label(voice) for voice in config.VOICES]
+    host_one = st.selectbox("Voice — host 1", voice_labels)
+    if style.host_count >= 2:
+        host_two = st.selectbox(
+            "Voice — host 2", voice_labels, index=min(1, len(voice_labels) - 1)
+        )
+    else:
+        host_two = ""
+
+    music_label = st.selectbox(
+        "Background music", list(config.MUSIC_LABELS),
+        help="Instrumental bed generated once, then mixed locally (no ffmpeg needed)",
+    )
+    auto_metadata = st.checkbox("Auto title & description", value=True)
+
+    st.caption("Keys stay in this browser session only — nothing is stored or logged.")
+
+keys_ok = keys["ok"]
+
+
+def make_options():
+    """Build pipeline options from the sidebar selections (single source of truth)."""
+    return build_options(
+        style=style.key,
+        language=config.get_language(language_label).code,
+        hosts=build_hosts(
+            style.key,
+            voice_id_from_label(host_one),
+            voice_id_from_label(host_two),
+        ),
+        voice_id=voice_id_from_label(host_one),
+        music_preset=config.get_music_preset(music_label).key,
+        generate_metadata=auto_metadata,
+    )
+# ─────────────────────────────────────────────
+#  Main area – tabs
+# ─────────────────────────────────────────────
+tab_generate, tab_batch, tab_publish, tab_about = st.tabs(
+    ["🎙️ Generate", "📡 RSS monitor", "📤 Publish", "ℹ️ About"]
+)
+
+with tab_generate:
+    source = st.radio("Source", list(SOURCES), horizontal=True)
+    kind = SOURCES[source]
+    url = ""
+    uploaded = None
+    feed_url = ""
+    if kind == "url":
+        url = st.text_input("Article URL", placeholder="https://example.com/my-post")
+    elif kind == "pdf":
+        uploaded = st.file_uploader(
+            "PDF document (research paper, report, newsletter…)", type=["pdf"]
+        )
+    else:
+        feed_url = st.text_input(
+            "RSS / Atom feed URL",
+            placeholder="https://example.com/feed.xml",
+            help="The newest entry is turned into an episode",
+        )
+
+    source_ready = (
+        (kind == "url" and bool(url.strip()))
+        or (kind == "pdf" and uploaded is not None)
+        or (kind == "rss" and bool(feed_url.strip()))
+    )
+    run_clicked = st.button(
+        "✨ Generate podcast",
+        type="primary",
+        disabled=not (keys_ok and source_ready),
+        use_container_width=True,
+    )
+
+    if run_clicked and keys_ok:
+        try:
+            with st.status("Working on your episode…", expanded=True) as status:
+                pipeline = make_pipeline(keys, status)
+
+                if kind == "url":
+                    article = pipeline.load_from_url(url.strip())
+                elif kind == "pdf":
+                    article = pipeline.load_from_pdf(
+                        uploaded.getvalue(), filename=uploaded.name
                     )
-                except Exception as tts_err:
-                    err_str = str(tts_err)
-                    # Show the raw error so we know exactly what ElevenLabs is complaining about
-                    st.error(f"ElevenLabs API Error: {err_str}")
-                    st.info("If it says 'invalid_api_key', double-check you copied the full key. If it says 'missing_permissions', verify your key has Text-to-Speech enabled in the ElevenLabs dashboard.")
-                    st.stop()
+                else:
+                    entries = pipeline.list_feed_entries(feed_url.strip(), limit=5)
+                    st.write(f"Newest entry: {entries[0].title}")
+                    article = pipeline.load_from_feed_entry(entries[0])
+                st.session_state["article"] = article
 
-                audio_bytes = b"".join(
-                    chunk for chunk in audio_generator if chunk
+                episode = pipeline.generate(article, make_options())
+                st.session_state["episode"] = episode
+                status.update(
+                    label="Episode ready 🎧", state="complete", expanded=False
                 )
+        except PodcastError as exc:
+            st.error(exc.message)
+            if exc.hint:
+                st.info(f"💡 {exc.hint}")
+        except Exception as exc:  # unexpected - surfaced for debugging
+            st.exception(exc)
+    article = st.session_state.get("article")
+    episode = st.session_state.get("episode")
 
-                # ── Step 3 : Display results ─────────────────────
-                st.markdown('<div class="result-card">', unsafe_allow_html=True)
-                st.markdown('<div class="result-title">🎧 Your Podcast is Ready</div>', unsafe_allow_html=True)
+    if article is not None:
+        with st.expander("📄 Source preview", expanded=False):
+            st.markdown(f"**{article.display_title}**")
+            st.caption(f"{article.word_count} words · source: {article.kind.value}")
+            preview = article.text[:1200]
+            st.text(preview + ("…" if len(article.text) > 1200 else ""))
 
-                st.audio(audio_bytes, format="audio/mp3")
+    if episode is not None and episode.has_audio:
+        st.markdown('<div class="result-card">', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="result-title">🎧 {episode.metadata.title}</div>',
+            unsafe_allow_html=True,
+        )
+        if episode.metadata.description:
+            st.caption(episode.metadata.description)
+        st.audio(episode.audio_bytes, format=episode.audio_format)
+        st.download_button(
+            "⬇️  Download MP3",
+            data=episode.audio_bytes,
+            file_name=episode.audio_filename,
+            mime=episode.audio_format,
+            use_container_width=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
 
-                st.download_button(
-                    label="⬇️  Download MP3",
-                    data=audio_bytes,
-                    file_name="podcast.mp3",
-                    mime="audio/mp3",
-                    use_container_width=True,
+        words = len(episode.script.narration_text.split())
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Duration", episode.duration_label)
+        col2.metric("Words", words)
+        col3.metric("Speakers", "2 hosts" if episode.script.is_dialogue else "Solo")
+        col4.metric("Music", episode.music_preset)
+
+        with st.expander("📝 Script", expanded=False):
+            st.text(episode.script.text)
+        with st.expander("🏷️ Episode metadata", expanded=False):
+            st.write(episode.metadata.title)
+            st.write(episode.metadata.description)
+            st.write(", ".join(episode.metadata.tags) or "—")
+
+with tab_batch:
+    st.caption(
+        "Watch a feed and turn its newest unprocessed entries into episodes. "
+        "Already-generated items are tracked in `outputs/rss_state.json`."
+    )
+    batch_feed = st.text_input(
+        "Feed URL", key="batch_feed", placeholder="https://example.com/feed.xml"
+    )
+    batch_limit = st.slider("Episodes per run", 1, 10, 2)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        preview_clicked = st.button(
+            "👀 Preview newest entries",
+            disabled=not (keys_ok and batch_feed.strip()),
+            use_container_width=True,
+        )
+    with col_b:
+        batch_clicked = st.button(
+            "⚙️ Generate batch",
+            disabled=not (keys_ok and batch_feed.strip()),
+            use_container_width=True,
+        )
+
+    if preview_clicked and keys_ok:
+        try:
+            with st.status("Checking feed…", expanded=True) as status:
+                pipeline = make_pipeline(keys, status)
+                st.session_state["feed_entries"] = pipeline.list_feed_entries(
+                    batch_feed.strip(), limit=batch_limit
                 )
+        except PodcastError as exc:
+            st.error(exc.message)
+            if exc.hint:
+                st.info(f"💡 {exc.hint}")
 
-                with st.expander("📄  View generated script"):
-                    st.write(summary)
+    for entry in st.session_state.get("feed_entries") or []:
+        st.markdown(f"- **{entry.title or entry.link}** — {entry.link or 'no link'}")
 
-                st.markdown("</div>", unsafe_allow_html=True)
+    if batch_clicked and keys_ok:
+        try:
+            with st.status("Generating batch…", expanded=True) as status:
+                pipeline = make_pipeline(keys, status)
+                episodes = pipeline.generate_from_feed(
+                    batch_feed.strip(), make_options(), limit=batch_limit
+                )
+            if episodes:
+                for generated in episodes:
+                    st.success(
+                        f"✅ {generated.metadata.title} — {generated.duration_label}"
+                    )
+                latest = episodes[-1]
+                st.session_state["episode"] = latest
+                st.session_state["article"] = latest.article
+            else:
+                st.info("Nothing new to process — every entry was already generated.")
+        except PodcastError as exc:
+            st.error(exc.message)
+            if exc.hint:
+                st.info(f"💡 {exc.hint}")
+with tab_publish:
+    published_episode = st.session_state.get("episode")
+    if published_episode is None or not published_episode.has_audio:
+        st.info("Generate an episode first — publishing works on the latest result.")
+    else:
+        st.markdown(f"**Ready to publish:** {published_episode.metadata.title}")
+        selected_labels = st.multiselect(
+            "Destinations",
+            list(config.PLATFORM_LABELS),
+            default=[config.PLATFORM_LABELS[0]],
+            help="RSS is how Spotify, Apple Podcasts and YouTube Music ingest shows",
+        )
+        base_url = st.text_input(
+            "Public base URL for the feed",
+            placeholder="https://myserver.com/podcast",
+            help="Makes enclosure URLs absolute (required by Spotify)",
+        )
+        webhook_url = st.text_input(
+            "Webhook endpoint",
+            placeholder="https://hooks.zapier.com/…",
+            help="POSTs the MP3 plus metadata (Zapier, Make.com, custom APIs)",
+        )
+        privacy = st.selectbox("YouTube privacy", ["private", "unlisted", "public"])
 
-            except Exception as e:
-                err_str = str(e)
-                st.error(f"An error occurred: {err_str}")
+        if st.button(
+            "🚀 Publish episode",
+            type="primary",
+            disabled=not selected_labels,
+            use_container_width=True,
+        ):
+            platform_keys = [
+                config.get_platform(label).key for label in selected_labels
+            ]
+            try:
+                with st.status("Publishing…", expanded=True) as status:
+                    pipeline = make_pipeline(keys, status)
+                    results = pipeline.publish(
+                        published_episode,
+                        platform_keys,
+                        webhook_url=webhook_url.strip(),
+                        feed_base_url=base_url.strip(),
+                        youtube_privacy=privacy,
+                    )
+                for result in results:
+                    detail = result.message + (f" → {result.url}" if result.url else "")
+                    if result.ok:
+                        st.success(f"**{result.platform}** — {detail}")
+                    else:
+                        st.error(f"**{result.platform}** — {detail}")
+            except PodcastError as exc:
+                st.error(exc.message)
+                if exc.hint:
+                    st.info(f"💡 {exc.hint}")
+
+with tab_about:
+    st.markdown(
+        """
+        **What this app does**
+
+        - 🌐 **Any source** — blog URLs, uploaded PDFs & research papers, RSS feeds.
+        - 🧠 **Smart scripts** — Gemini writes solo monologues or two-host dialogues.
+        - 🌍 **Multilingual** — 15 languages; the multilingual voice model is picked automatically.
+        - 🎙️ **True multi-voice** — dialogue episodes keep a distinct voice per host.
+        - 🎵 **Music** — intro/outro stings and continuous underlays, mixed without ffmpeg.
+        - 🏷️ **Auto metadata** — episode title, description and tags are generated for you.
+        - 🚀 **Publishing** — local archive, RSS feed (the Spotify/Apple route), YouTube, webhooks.
+        """
+    )
+    st.caption(
+        "Configuration lives in `podcast/config.py` · logs in `outputs/logs/app.log` · "
+        "published episodes in `outputs/episodes/`."
+    )
+
+st.markdown(
+    '<div class="app-footer">Blog to Podcast Agent · <strong>Gemini</strong> + '
+    "<strong>Firecrawl</strong> + <strong>ElevenLabs</strong> · MIT License</div>",
+    unsafe_allow_html=True,
+)

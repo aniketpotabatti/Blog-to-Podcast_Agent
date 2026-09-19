@@ -1,6 +1,16 @@
-agno>=2.2.10
+# Core app
 streamlit>=1.40.2
-google-genai>=0.8.3
-requests
-firecrawl-py>=4.6.0
-elevenlabs>=1.0.0
+
+# Pipeline
+agno>=2.2.10            # agent orchestration (Gemini via google-genai)
+google-genai>=0.8.3     # Gemini SDK used by agno
+firecrawl-py>=4.6.0     # article scraping
+elevenlabs>=1.0.0       # TTS, dialogue & music generation
+pypdf>=4.0.0            # local PDF parsing
+feedparser>=6.0.10      # RSS/Atom ingestion
+numpy>=1.26
+soundfile>=0.12.1       # MP3 decode/encode for ffmpeg-free mixing
+requests>=2.31
+
+# Optional - YouTube publishing only
+# google-api-python-client google-auth
