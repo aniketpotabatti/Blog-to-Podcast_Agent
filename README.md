@@ -92,9 +92,9 @@ Ensure you have Python 3.9+ installed. You will also need API keys for the follo
 This project is licensed under the MIT License.
 
 ---
-<!--
-## 🛣️ Future Roadmap & Feature Suggestions
 
+## 🛣️ Future Roadmap & Feature Suggestions
+<!--
 To build a truly robust, scalable, and production-grade "Blog to Podcast" agent suited for 2026 and beyond, consider the following roadmap items and improvements:
 
 ### Scalability & Deployment
@@ -155,13 +155,13 @@ To build a truly robust, scalable, and production-grade "Blog to Podcast" agent 
 - Docker support and anti-bot fallback for tough-to-scrape sites.
 - Async background jobs, quotas, and rate limits for scaling to more users.
 -->
-- PDF/research paper ingestion, not just blogs.
-- RSS feed monitoring for automatic podcast creation.
-- Multilingual podcast support.
-- Multi-host/AI dialogue generation for conversational episodes.
-- Background music (intro/outro/underlay).
-- Automatic episode title and description generation.
-- One-click publishing to Spotify, YouTube, and other podcast platforms.
+- ✅ PDF/research paper ingestion, not just blogs.
+- ✅ RSS feed monitoring for automatic podcast creation.
+- ✅ Multilingual podcast support.
+- ✅ Multi-host/AI dialogue generation for conversational episodes.
+- ✅ Background music (intro/outro/underlay).
+- ✅ Automatic episode title and description generation.
+- ✅ One-click publishing to Spotify, YouTube, and other podcast platforms.
 
 ---
 
