@@ -13,7 +13,9 @@ any API key.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple
+
+import threading
 
 from podcast import audio, config, ingestion, publishing, script as script_mod, tts
 from podcast.errors import PodcastError
@@ -77,21 +79,24 @@ class PodcastPipeline:
 
         self._firecrawl = self.clients.firecrawl
         self._elevenlabs = self.clients.elevenlabs
+        self._lock = threading.Lock()
 
     # ── lazy client accessors ──────────────────────────────
     @property
     def firecrawl(self) -> Any:
         """Firecrawl client, created on first use."""
-        if self._firecrawl is None:
-            self._firecrawl = ingestion.build_firecrawl_client(self.firecrawl_api_key)
-        return self._firecrawl
+        with self._lock:
+            if self._firecrawl is None:
+                self._firecrawl = ingestion.build_firecrawl_client(self.firecrawl_api_key)
+            return self._firecrawl
 
     @property
     def elevenlabs(self) -> Any:
         """ElevenLabs client, created on first use."""
-        if self._elevenlabs is None:
-            self._elevenlabs = tts.build_elevenlabs_client(self.elevenlabs_api_key)
-        return self._elevenlabs
+        with self._lock:
+            if self._elevenlabs is None:
+                self._elevenlabs = tts.build_elevenlabs_client(self.elevenlabs_api_key)
+            return self._elevenlabs
 
     @property
     def monitor(self) -> ingestion.FeedMonitor:
@@ -103,7 +108,8 @@ class PodcastPipeline:
         """Load an article from a blog URL or a direct PDF link."""
         self.progress("Fetching source", url)
         return ingestion.load_article_from_url(
-            url, client=self.firecrawl if self.clients.firecrawl else None,
+            url,
+            client=self.firecrawl if self.clients.firecrawl else None,
             api_key=self.firecrawl_api_key,
         )
 
@@ -121,12 +127,16 @@ class PodcastPipeline:
             api_key=self.firecrawl_api_key,
         )
 
-    def list_feed_entries(self, feed_url: str, limit: int = config.RSS_DEFAULT_LIMIT) -> List[FeedEntry]:
+    def list_feed_entries(
+        self, feed_url: str, limit: int = config.RSS_DEFAULT_LIMIT
+    ) -> List[FeedEntry]:
         """List the newest entries of a feed (newest first)."""
         self.progress("Checking feed", feed_url)
         return ingestion.fetch_feed_entries(feed_url, limit=limit)
 
-    def new_feed_entries(self, feed_url: str, limit: int = config.RSS_DEFAULT_LIMIT) -> List[FeedEntry]:
+    def new_feed_entries(
+        self, feed_url: str, limit: int = config.RSS_DEFAULT_LIMIT
+    ) -> List[FeedEntry]:
         """List only the feed entries that have not been processed yet."""
         entries = self.list_feed_entries(feed_url, limit=limit)
         return self.monitor.new_entries(feed_url, entries)
@@ -137,74 +147,25 @@ class PodcastPipeline:
 
         Steps: write the script, generate metadata, synthesize speech, mix the
         music bed, then return the finished episode.
-
-        Args:
-            article: Normalised source content.
-            options: User selections (style, language, hosts, music).
-
-        Returns:
-            The finished :class:`EpisodeResult`.
-
-        Raises:
-            PodcastError: any typed pipeline failure with an actionable hint.
         """
         language = config.get_language(options.language)
         style = config.get_style(options.style)
         hosts = script_mod.resolve_hosts(style.key, options.hosts)
 
         # 1. Script (features 3 and 4)
-        self.progress("Writing the script", f"{style.label} · {language.label}")
-        script = script_mod.generate_script(
-            article,
-            style_key=style.key,
-            language=language.code,
-            hosts=hosts,
-            generator=self.clients.generator,
-            api_key=self.gemini_api_key,
-            max_words=options.max_words or config.SCRIPT_MAX_WORDS,
-        )
+        script = self._prepare_script(article, options, style, language, hosts)
 
         # 2. Episode metadata (feature 6)
-        if options.generate_metadata:
-            self.progress("Naming the episode", "title, description, tags")
-            metadata = script_mod.generate_metadata(
-                article,
-                script,
-                generator=self.clients.generator,
-                api_key=self.gemini_api_key,
-                language=language.code,
-            )
-        else:
-            metadata = script_mod.fallback_metadata(article, language=language.code)
+        metadata = self._prepare_metadata(article, script, options, language)
 
         # 3. Speech synthesis (features 3 and 4)
         voice_id = options.voice_id or hosts[0].voice_id or config.DEFAULT_VOICE_ID
-        detail = "multi-speaker dialogue" if script.is_dialogue else "single narrator"
-        self.progress("Synthesizing speech", detail)
-        synthesis = tts.synthesize(
-            script,
-            client=self._elevenlabs,
-            api_key=self.elevenlabs_api_key,
-            voice_id=voice_id,
-            language_code=language.code,
-        )
+        synthesis = self._prepare_audio(script, voice_id, language)
 
         # 4. Music bed (feature 5)
-        audio_bytes = synthesis.audio
-        music_preset = config.get_music_preset(options.music_preset)
-        mix_report = audio.MusicMixReport(applied=False, reason="no music requested")
-        if music_preset.key != "none":
-            self.progress("Adding music", music_preset.label)
-            music = options.music_bytes or audio.build_music_bed(
-                music_preset,
-                client=self.clients.elevenlabs,
-                api_key=self.elevenlabs_api_key,
-            )
-            audio_bytes, mix_report = audio.apply_music_preset(
-                audio_bytes, music_preset, music=music
-            )
-            if not mix_report.applied:
-                LOGGER.warning("Music not applied: %s", mix_report.reason)
+        audio_bytes, mix_report = self._prepare_music(
+            synthesis.audio, options, language
+        )
 
         result = EpisodeResult(
             metadata=metadata,
@@ -213,7 +174,7 @@ class PodcastPipeline:
             audio_bytes=audio_bytes,
             audio_filename=f"{metadata.slug}.mp3",
             duration_seconds=self._measure_duration(audio_bytes, script),
-            music_preset=music_preset.key if mix_report.applied else "none",
+            music_preset=mix_report.preset_key if mix_report.applied else "none",
             used_dialogue_tts=synthesis.used_dialogue_api,
         )
         LOGGER.info(
@@ -223,6 +184,85 @@ class PodcastPipeline:
             len(audio_bytes),
         )
         return result
+
+    def _prepare_script(
+        self,
+        article: Article,
+        options: PipelineOptions,
+        style: config.StylePreset,
+        language: config.Language,
+        hosts: List[Host],
+    ) -> script_mod.PodcastScript:
+        self.progress("Writing the script", f"{style.label} · {language.label}")
+        return script_mod.generate_script(
+            article,
+            style_key=style.key,
+            language=language.code,
+            hosts=hosts,
+            generator=self.clients.generator,
+            api_key=self.gemini_api_key,
+            max_words=options.max_words or config.SCRIPT_MAX_WORDS,
+        )
+
+    def _prepare_metadata(
+        self,
+        article: Article,
+        script: script_mod.PodcastScript,
+        options: PipelineOptions,
+        language: config.Language,
+    ) -> script_mod.EpisodeMetadata:
+        if not options.generate_metadata:
+            return script_mod.fallback_metadata(article, language=language.code)
+
+        self.progress("Naming the episode", "title, description, tags")
+        return script_mod.generate_metadata(
+            article,
+            script,
+            generator=self.clients.generator,
+            api_key=self.gemini_api_key,
+            language=language.code,
+        )
+
+    def _prepare_audio(
+        self,
+        script: script_mod.PodcastScript,
+        voice_id: str,
+        language: config.Language,
+    ) -> tts.SynthesisResult:
+        detail = "multi-speaker dialogue" if script.is_dialogue else "single narrator"
+        self.progress("Synthesizing speech", detail)
+        return tts.synthesize(
+            script,
+            client=self.elevenlabs,
+            api_key=self.elevenlabs_api_key,
+            voice_id=voice_id,
+            language_code=language.code,
+        )
+
+    def _prepare_music(
+        self,
+        narration_bytes: bytes,
+        options: PipelineOptions,
+        language: config.Language,
+    ) -> Tuple[bytes, audio.MusicMixReport]:
+        preset = config.get_music_preset(options.music_preset)
+        if preset.key == "none":
+            return narration_bytes, audio.MusicMixReport(
+                applied=False, reason="no music requested", preset_key="none"
+            )
+
+        self.progress("Adding music", preset.label)
+        music = options.music_bytes or audio.build_music_bed(
+            preset,
+            client=self.elevenlabs,
+            api_key=self.elevenlabs_api_key,
+        )
+        audio_bytes, report = audio.apply_music_preset(
+            narration_bytes, preset, music=music
+        )
+        if not report.applied:
+            LOGGER.warning("Music not applied: %s", report.reason)
+        return audio_bytes, report
 
     @staticmethod
     def _measure_duration(audio_bytes: bytes, script: Any) -> float:
@@ -306,7 +346,9 @@ class PodcastPipeline:
                 if mark_seen:
                     self.monitor.mark_entries_seen(feed_url, [entry])
             except PodcastError as exc:
-                LOGGER.error("Skipping '%s': %s", entry.title or entry.link, exc.message)
+                LOGGER.error(
+                    "Skipping '%s': %s", entry.title or entry.link, exc.message
+                )
                 continue
         return episodes
 

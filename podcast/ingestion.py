@@ -45,7 +45,9 @@ from podcast.utils import (
 )
 
 LOGGER = get_logger("ingestion")
-USER_AGENT = "BlogToPodcastAgent/2.0 (+https://github.com/aniketpotabatti/Blog-to-Podcast_Agent)"
+USER_AGENT = (
+    "BlogToPodcastAgent/2.0 (+https://github.com/aniketpotabatti/Blog-to-Podcast_Agent)"
+)
 
 
 def _field(obj: Any, name: str, default: Any = "") -> Any:
@@ -101,12 +103,18 @@ def article_from_document(document: Any, url: str = "") -> Article:
         title=clean_text(str(title)),
         url=_field(metadata, "sourceURL") or url,
         kind=SourceKind.URL,
-        author=clean_text(str(_field(metadata, "author") or _field(metadata, "dcCreator"))),
-        published=str(_field(metadata, "publishedTime") or _field(metadata, "date") or ""),
+        author=clean_text(
+            str(_field(metadata, "author") or _field(metadata, "dcCreator"))
+        ),
+        published=str(
+            _field(metadata, "publishedTime") or _field(metadata, "date") or ""
+        ),
     )
 
 
-def scrape_url(url: str, *, api_key: str = "", client: Any = None, max_chars: int = 0) -> Article:
+def scrape_url(
+    url: str, *, api_key: str = "", client: Any = None, max_chars: int = 0
+) -> Article:
     """Scrape a public web page into an Article via Firecrawl.
 
     Ads and navigation chrome are stripped using ``block_ads`` and
@@ -159,7 +167,9 @@ def scrape_url(url: str, *, api_key: str = "", client: Any = None, max_chars: in
 # ─────────────────────────────────────────────
 #  FEATURE 1: PDF & research paper ingestion
 # ─────────────────────────────────────────────
-def extract_pdf_text(data: bytes, *, max_pages: int = config.PDF_MAX_PAGES) -> Dict[str, Any]:
+def extract_pdf_text(
+    data: bytes, *, max_pages: int = config.PDF_MAX_PAGES
+) -> Dict[str, Any]:
     """Extract text and document info from raw PDF bytes using ``pypdf``.
 
     Args:
@@ -346,7 +356,9 @@ def load_article_from_pdf_url(
     except IngestionError as local_error:
         LOGGER.warning("Local PDF parsing failed for %s: %s", target, local_error)
 
-    return scrape_with_pdf_parser(target, api_key=api_key, client=client, max_chars=max_chars)
+    return scrape_with_pdf_parser(
+        target, api_key=api_key, client=client, max_chars=max_chars
+    )
 
 
 def scrape_with_pdf_parser(
@@ -374,7 +386,10 @@ def scrape_with_pdf_parser(
 
     try:
         document = retry_call(
-            _scrape, attempts=config.MAX_RETRIES, description="scrape pdf", logger=LOGGER
+            _scrape,
+            attempts=config.MAX_RETRIES,
+            description="scrape pdf",
+            logger=LOGGER,
         )
     except Exception as exc:
         raise classify_exception(exc, stage="ingestion") from exc
@@ -545,7 +560,9 @@ def load_article_from_feed_entry(
         return _article_from_entry_summary(entry)
 
     try:
-        article = scrape_url(entry.link, api_key=api_key, client=client, max_chars=max_chars)
+        article = scrape_url(
+            entry.link, api_key=api_key, client=client, max_chars=max_chars
+        )
         article.kind = SourceKind.RSS
     except IngestionError as exc:
         LOGGER.warning("Falling back to feed summary for %s: %s", entry.link, exc)
@@ -607,6 +624,10 @@ def load_article_from_url(
     if is_pdf_url(target):
         LOGGER.info("Detected PDF source: %s", target)
         return load_article_from_pdf_url(
-            target, api_key=api_key, client=client, max_chars=max_chars, max_pages=max_pages
+            target,
+            api_key=api_key,
+            client=client,
+            max_chars=max_chars,
+            max_pages=max_pages,
         )
     return scrape_url(target, api_key=api_key, client=client, max_chars=max_chars)

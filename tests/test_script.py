@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from podcast import config
+from podcast.config import resolve_hosts
 from podcast.errors import ScriptGenerationError
 from podcast.models import Article, Host, SourceKind
 from podcast.script import (
@@ -15,13 +16,17 @@ from podcast.script import (
     generate_script,
     metadata_from_raw,
     parse_script,
-    resolve_hosts,
 )
 
-HOSTS = [Host(name="Rachel", voice_id="voice-rachel"), Host(name="Adam", voice_id="voice-adam")]
+HOSTS = [
+    Host(name="Rachel", voice_id="voice-rachel"),
+    Host(name="Adam", voice_id="voice-adam"),
+]
 
 
-def article(title: str = "How AI Changes Software Teams", kind: SourceKind = SourceKind.URL) -> Article:
+def article(
+    title: str = "How AI Changes Software Teams", kind: SourceKind = SourceKind.URL
+) -> Article:
     """Sample article used across the script tests."""
     return Article(
         text="Artificial intelligence is reshaping how teams ship software. " * 10,
@@ -136,7 +141,9 @@ class TestParseScriptDialogue:
         assert [segment.speaker for segment in script.segments] == ["Adam", "Rachel"]
 
     def test_unlabelled_text_degrades_to_single_speaker(self):
-        script = parse_script("Just some narration without labels.", HOSTS, style_key="dialogue")
+        script = parse_script(
+            "Just some narration without labels.", HOSTS, style_key="dialogue"
+        )
         assert script.is_dialogue is False
         assert len(script.segments) == 1
 
@@ -166,7 +173,9 @@ class TestParseScriptSolo:
         assert script.segments[0].voice_id == "voice-rachel"
 
     def test_leading_speaker_label_is_stripped(self):
-        script = parse_script("George: Welcome to the show.", HOSTS[:1], style_key="solo")
+        script = parse_script(
+            "George: Welcome to the show.", HOSTS[:1], style_key="solo"
+        )
         assert script.segments[0].text == "Welcome to the show."
 
     def test_language_and_style_are_recorded(self):
@@ -180,7 +189,7 @@ class TestParseScriptSolo:
 
     def test_default_hosts_used_when_none_supplied(self):
         script = parse_script("Text.", [], style_key="solo")
-        assert script.segments[0].voice_id == config.DEFAULT_VOICE_ID
+        assert script.segments[0].voice_id == "21m00Tcm4TlvDq8ikWAM"
 
 
 # ─────────────────────────────────────────────
@@ -286,7 +295,10 @@ class TestMetadataParsing:
         assert metadata.description  # generated from the article title
 
     def test_language_is_recorded(self):
-        assert metadata_from_raw('{"title": "t"}', article(), language="pt").language == "pt"
+        assert (
+            metadata_from_raw('{"title": "t"}', article(), language="pt").language
+            == "pt"
+        )
 
 
 class TestFallbackMetadata:
@@ -313,7 +325,9 @@ class TestGenerateMetadata:
         metadata = generate_metadata(
             sample_article,
             script,
-            generator=lambda prompt: '{"title": "T", "description": "D", "tags": ["x"]}',
+            generator=lambda prompt: (
+                '{"title": "T", "description": "D", "tags": ["x"]}'
+            ),
         )
         assert metadata.title == "T"
         assert metadata.tags == ["x"]
@@ -323,7 +337,9 @@ class TestGenerateMetadata:
         prompt = build_metadata_prompt(sample_article, script, language="it")
         assert "Italian" in prompt
 
-    def test_model_failure_falls_back_without_raising(self, sample_article, monkeypatch):
+    def test_model_failure_falls_back_without_raising(
+        self, sample_article, monkeypatch
+    ):
         monkeypatch.setattr(config, "MAX_RETRIES", 1)
         script = parse_script("Narration.", HOSTS[:1], style_key="solo")
 

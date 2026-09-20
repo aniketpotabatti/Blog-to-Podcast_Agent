@@ -10,7 +10,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import TYPE_CHECKING, Dict, List, Tuple
+
+if TYPE_CHECKING:
+    from podcast.models import Host
 
 # ─────────────────────────────────────────────
 #  Paths
@@ -67,7 +70,9 @@ WORDS_PER_MINUTE = 150
 #  Publishing
 # ─────────────────────────────────────────────
 FEED_TITLE = "Blog to Podcast - AI Episodes"
-FEED_DESCRIPTION = "AI-narrated podcast episodes generated from blog posts, PDFs and RSS feeds."
+FEED_DESCRIPTION = (
+    "AI-narrated podcast episodes generated from blog posts, PDFs and RSS feeds."
+)
 FEED_LANGUAGE = "en"
 FEED_MAX_ITEMS = 50
 
@@ -250,19 +255,84 @@ def get_style(key_or_label: str) -> StylePreset:
 
 
 def default_hosts(style_key: str, voices: Tuple[Voice, ...] = VOICES) -> List[Voice]:
-    """Pick sensible default voices for the number of hosts a style needs."""
+    """Pick sensible default voices for the number of hosts a style needs.
+
+    Ensures that for multi-host styles, distinct voices are selected from the
+    available pool.
+    """
     style = get_style(style_key)
-    if style.host_count < 2:
-        return [VOICES[0]]
-    pair = DEFAULT_HOST_PAIRS[0]
+    if style.host_count < 1:
+        return []
+
+    # 1. Start with the project default pair for consistency
     chosen: List[Voice] = []
-    for name in pair:
-        match = next((v for v in voices if v.name.lower() == name.lower()), None)
-        if match:
+    pair_names = [name.lower() for name in DEFAULT_HOST_PAIRS[0]]
+
+    for name in pair_names:
+        match = next((v for v in voices if v.name.lower() == name), None)
+        if match and match not in chosen:
             chosen.append(match)
-    while len(chosen) < style.host_count:
-        chosen.append(VOICES[len(chosen)])
+
+    # 2. Pad with remaining voices from the pool if needed
+    for voice in voices:
+        if len(chosen) >= style.host_count:
+            break
+        if voice not in chosen:
+            chosen.append(voice)
+
     return chosen[: style.host_count]
+
+
+def resolve_hosts(style_key: str, hosts: Optional[Sequence[Host]] = None) -> List[Host]:
+    """Return the host list for a style, filling gaps with sensible defaults.
+
+    Solo styles always resolve to exactly one host; multi-host styles pad the
+    supplied list with curated default voices so dialogue keeps distinct voices.
+    """
+    from podcast.models import Host
+    style = get_style(style_key)
+    resolved: List[Host] = [host for host in (hosts or []) if host and host.voice_id]
+
+    if len(resolved) >= style.host_count:
+        return resolved[: style.host_count]
+
+    # Fill remaining slots with default voices, skipping IDs we already have
+    existing_ids = {host.voice_id for host in resolved}
+    defaults = default_hosts(style.key)
+
+    for voice in defaults:
+        if len(resolved) >= style.host_count:
+            break
+        if voice.voice_id not in existing_ids:
+            resolved.append(Host(name=voice.name, voice_id=voice.voice_id))
+
+    # Absolute fallback if we still don't have enough (should be rare)
+    while len(resolved) < style.host_count:
+        voice = VOICES[len(resolved) % len(VOICES)]
+        resolved.append(Host(name=voice.name, voice_id=voice.voice_id))
+
+    return resolved[: style.host_count]
+
+
+def match_host(speaker: str, hosts: Sequence[Host]) -> Optional[Host]:
+    """Find the host a speaker label refers to.
+
+    Matches the full label first (``Rachel``), then by first token so labels
+    like ``Adam Smith:`` still resolve to the ``Adam`` host.
+    """
+    needle = speaker.strip().lower().rstrip(".,;:")
+    if not needle:
+        return None
+    needle_first = needle.split()[0]
+
+    for host in hosts:
+        if host.name.strip().lower() == needle:
+            return host
+    for host in hosts:
+        name = host.name.strip().lower()
+        if name.split()[0] == needle_first or name == needle_first:
+            return host
+    return None
 
 
 # ─────────────────────────────────────────────
@@ -411,7 +481,9 @@ PLATFORMS: Tuple[PlatformSpec, ...] = (
 PLATFORM_BY_KEY: Dict[str, PlatformSpec] = {spec.key: spec for spec in PLATFORMS}
 PLATFORM_LABELS: Tuple[str, ...] = tuple(spec.label for spec in PLATFORMS)
 
-YOUTUBE_UPLOAD_SCOPES: Tuple[str, ...] = ("https://www.googleapis.com/auth/youtube.upload",)
+YOUTUBE_UPLOAD_SCOPES: Tuple[str, ...] = (
+    "https://www.googleapis.com/auth/youtube.upload",
+)
 YOUTUBE_API_SERVICE = "youtube"
 YOUTUBE_API_VERSION = "v3"
 YOUTUBE_CATEGORY_ID = "22"  # People & Blogs

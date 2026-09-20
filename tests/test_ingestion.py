@@ -98,7 +98,11 @@ class FakeDocument:
         self.metadata = metadata
 
 
-def make_pdf_bytes(text: str = "Research paper body text.", title: str = "A Study", author: str = "A. Author") -> bytes:
+def make_pdf_bytes(
+    text: str = "Research paper body text.",
+    title: str = "A Study",
+    author: str = "A. Author",
+) -> bytes:
     """Create a real single-page PDF using pypdf."""
     from pypdf import PdfWriter
 
@@ -129,7 +133,9 @@ class TestArticleFromDocument:
         assert "Some **body** text." in article.text
 
     def test_missing_metadata_is_tolerated(self):
-        article = article_from_document(FakeDocument(markdown="body"), "https://fallback")
+        article = article_from_document(
+            FakeDocument(markdown="body"), "https://fallback"
+        )
         assert article.title == ""
         assert article.url == "https://fallback"
 
@@ -261,7 +267,10 @@ class TestBuildPdfArticle:
 
     def test_filename_used_when_no_title_available(self):
         extracted = {"text": "Body.", "title": "", "author": ""}
-        assert build_pdf_article(extracted, filename="my-paper.pdf").title == "my-paper.pdf"
+        assert (
+            build_pdf_article(extracted, filename="my-paper.pdf").title
+            == "my-paper.pdf"
+        )
 
     def test_empty_text_raises_with_ocr_hint(self):
         with pytest.raises(IngestionError) as exc:
@@ -346,7 +355,9 @@ class TestFetchFeedEntries:
 
     def test_limit_is_applied(self):
         session = FakeSession(FakeResponse(text=RSS_SAMPLE))
-        entries = fetch_feed_entries("https://example.com/feed.xml", limit=1, session=session)
+        entries = fetch_feed_entries(
+            "https://example.com/feed.xml", limit=1, session=session
+        )
         assert len(entries) == 1
 
     def test_invalid_url_rejected_before_network(self):
@@ -421,7 +432,9 @@ class TestLoadArticleFromFeedEntry:
     """One feed item becomes one Article, resiliently."""
 
     def test_scrapes_the_entry_link(self):
-        client = FakeFirecrawl(FakeDocument(markdown="Article body.", title="From scrape"))
+        client = FakeFirecrawl(
+            FakeDocument(markdown="Article body.", title="From scrape")
+        )
         entry = FeedEntry(title="Feed title", link="https://example.com/post")
         article = load_article_from_feed_entry(entry, client=client)
         assert article.kind is SourceKind.RSS

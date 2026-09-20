@@ -22,7 +22,10 @@ from podcast.tts import (
     synthesize_solo,
 )
 
-HOSTS = [Host(name="Rachel", voice_id="voice-rachel"), Host(name="Adam", voice_id="voice-adam")]
+HOSTS = [
+    Host(name="Rachel", voice_id="voice-rachel"),
+    Host(name="Adam", voice_id="voice-adam"),
+]
 DIALOGUE_RAW = (
     "Rachel: Welcome back to the show.\n"
     "Adam: Thanks for having me.\n"
@@ -139,7 +142,9 @@ class TestSynthesizeSolo:
 
     def test_auth_failure_is_classified(self, monkeypatch):
         monkeypatch.setattr(config, "TTS_MAX_RETRIES", 1)
-        client = FakeElevenLabs(speech=FakeSpeech(error=RuntimeError("401 unauthorized")))
+        client = FakeElevenLabs(
+            speech=FakeSpeech(error=RuntimeError("401 unauthorized"))
+        )
         with pytest.raises(AuthenticationError):
             synthesize_solo("Text.", client=client)
 
@@ -156,7 +161,9 @@ class TestPlanDialogueBatches:
     """Batching keeps every provider request inside its documented limits."""
 
     def segments(self, texts):
-        return [DialogueSegment(speaker="R", text=text, voice_id="v1") for text in texts]
+        return [
+            DialogueSegment(speaker="R", text=text, voice_id="v1") for text in texts
+        ]
 
     def test_short_dialogue_is_one_batch(self):
         batches = plan_dialogue_batches(self.segments(["a", "b", "c"]))
@@ -165,10 +172,13 @@ class TestPlanDialogueBatches:
 
     def test_char_limit_splits_batches(self):
         long_text = "x" * 1000
-        batches = plan_dialogue_batches(self.segments([long_text, long_text, long_text]))
+        batches = plan_dialogue_batches(
+            self.segments([long_text, long_text, long_text])
+        )
         assert len(batches) == 3
         assert all(
-            sum(len(seg.text) for seg in batch) <= DIALOGUE_MAX_CHARS for batch in batches
+            sum(len(seg.text) for seg in batch) <= DIALOGUE_MAX_CHARS
+            for batch in batches
         )
 
     def test_speaker_limit_splits_batches(self):
@@ -228,7 +238,9 @@ class TestSynthesizeSegmentsIndividually:
 
     def test_audio_is_concatenated(self):
         client = FakeElevenLabs()
-        audio = synthesize_segments_individually(dialogue_script().segments, client=client)
+        audio = synthesize_segments_individually(
+            dialogue_script().segments, client=client
+        )
         assert audio == b"MP3-CHUNK" * 4
 
     def test_no_usable_segments_raises(self):

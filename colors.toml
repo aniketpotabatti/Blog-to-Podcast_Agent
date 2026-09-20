@@ -1,0 +1,224 @@
+# ── Blog to Podcast · Design tokens
+# Single source of truth for the dark glassmorphism theme.
+
+# Top-level keys
+base_background = [
+    "#0b0a1f",   # deep indigo-black (top)
+    "#131034",   # violet plunge (mid)
+    "#0a1626",   # deep slate (bottom)
+]
+hero_text_stops = ["#ffffff", "#d8ccff", "#f5d0fe"]
+button_gradient = [
+    "#8b5cf6",   # violet (stop 0)
+    "#a855f7",   # violet-amber bridge
+    "#d946ef",   # fuchsia (stop 1)
+]
+focus_ring_outer         = [167, 139, 250, 0.28]
+focus_ring_inner         = [167, 139, 250, 0.12]
+focus_border_hover       = [167, 139, 250, 0.65]
+focus_border_active      = [167, 139, 250, 0.85]
+focus_ink_on_accent_bg   = "#ffffff"
+chip_accent_line         = [167, 139, 250, 0.9]
+chip_accent_bg           = [167, 139, 250, 0.16]
+sidebar_glow_stop1       = [103, 232, 249, 0.18]
+sidebar_glow_stop2       = [139, 92,  246, 0.10]
+sidebar_surface          = [255, 255, 255, 0.03]
+sidebar_bottom           = [11,  10,  31,  0.96]
+
+# ── Brand info ────────────────────────────────────────────────────────────────
+[brand]
+name        = "indigo-night"
+description = "indigo night backdrop · violet → fuchsia accent"
+
+# ── Glass surfaces (rgba helper names) ──────────────────────────────────────
+[surface]
+# each value is a 4-element array [r, g, b, a] used to build rgba(...)
+default         = [255, 255, 255, 0.045]   # glass card
+strong          = [255, 255, 255, 0.075]   # hovered / strong card
+accent          = [167, 139, 250, 0.12]    # tag backgrounds
+pill            = [255, 255, 255, 0.06]    # pill / chip background
+header          = [16,  13,  44,  0.96]    # sidebar / publisher panel
+
+# ── Lines ───────────────────────────────────────────────────────────────────
+[line]
+hairline    = [255, 255, 255, 0.09]
+strong      = [255, 255, 255, 0.17]
+
+# ── Text hierarchy ──────────────────────────────────────────────────────────
+[text]
+hi   = "#f4f2ff"                      # primary text / headings
+mid  = [244, 242, 255, 0.62]          # body / labels
+lo   = [244, 242, 255, 0.40]          # muted / placeholder
+
+# ── Accent family (violet → fuchsia) ───────────────────────────────────────
+[accent]
+primary  = "#a78bfa"                  # focus rings, slider, glow
+secondary = "#e879f9"                 # gradient stop 2, badges
+soft     = [167, 139, 250, 0.16]      # ambient halo (focus box-shadow)
+ink      = "#e9d5ff"                  # tag text on soft accent bg
+link     = "#c4b5fd"
+placeholder = "#a78bfa"
+
+# ── Glass gradient stops (used directly in CSS gradients, rgba) ────────────
+[gradient]
+accent_glow_top     = [167, 139, 250, 0.16]   # top-right radial pill
+accent_glow_bottom  = [232, 121, 249, 0.10]   # bottom-left radial pill
+hero_border_a       = [167, 139, 250, 0.55]
+hero_border_b       = [232, 121, 249, 0.35]
+hero_border_c       = [103, 232, 249, 0.25]
+hero_header_op      = [19,  16,  52,  0.72]
+shadow_drop         = [4,   2,   20,  0.55]
+hero_icon_shadow    = [167, 139, 250, 0.45]
+
+# ── Sidebar header glow ─────────────────────────────────────────────────────
+sidebar_glow_stop1 = [103, 232, 249, 0.18]
+sidebar_glow_stop2 = [139, 92,  246, 0.10]
+sidebar_surface    = [255, 255, 255, 0.03]
+sidebar_bottom     = [11,  10,  31,  0.96]
+
+# ── Sponsor card accent ─────────────────────────────────────────────────────
+sponsor_accent       = "#a78bfa"
+sponsor_accent_bg    = [167, 139, 250, 0.08]
+sponsor_accent_line  = [167, 139, 250, 0.25]
+sponsor_text_hi      = "#f4f2ff"
+sponsor_text_mid     = [244, 242, 255, 0.72]
+
+# ── Radius ──────────────────────────────────────────────────────────────────
+[radius]
+lg   = 22
+md   = 16
+sm   = 12
+pill = 999
+chip = 8
+
+# ── Typography ──────────────────────────────────────────────────────────────
+[font]
+family  = "Inter"
+url     = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+track_heading = -0.02
+track_body    = 0.01
+track_label   = 0.16
+
+# ── Section label ───────────────────────────────────────────────────────────
+[section_label]
+size           = 0.70
+weight         = 700
+upper          = true
+margin_bottom  = 0.55
+
+# ── Hero ────────────────────────────────────────────────────────────────────
+[hero]
+icon_size      = 3.0
+title_size     = 2.1
+title_weight   = 800
+title_track    = -0.02
+subtitle_size  = 0.98
+subtitle_max_width = 560
+subtitle_line  = 1.55
+icon_shadow_radius = 18
+icon_shadow_x      = 6
+icon_shadow_y      = 18
+card_padding   = "2.6rem 2.4rem 2.0rem"
+card_margin    = "0 auto 0.9rem"
+backdrop_blur  = 18
+glow_size      = 900
+glow_height    = 520
+
+# ── Input controls ──────────────────────────────────────────────────────────
+[control]
+font_size     = 0.94
+input_pad_x   = 1.0
+input_pad_y   = 0.72
+placeholder_fs = 0.90
+baseweb_fs    = 0.90
+
+# ── Publishing panel layout ─────────────────────────────────────────────────
+[panel]
+side_pad        = 2.4
+gap_section     = 1.6
+gap_item        = 1.6
+header_size     = 0.90
+base_panel_pad  = 2.0
+header_margin_b = 1.1
+
+# ── Feature pills ───────────────────────────────────────────────────────────
+[pill]
+text   = "#ddd6fe"
+border = [167, 139, 250, 0.28]
+size   = 0.72
+weight = 600
+track  = 0.02
+pad_y  = 0.28
+pad_x  = 0.75
+
+# ── Primary button shadows ──────────────────────────────────────────────────
+[button]
+primary_shadow       = [139, 92, 246, 0.35]
+primary_shadow_hover = [139, 92, 246, 0.45]
+font_size            = 0.95
+pad_y                = 0.62
+pad_x                = 1.4
+
+# ── Multiselect tags ────────────────────────────────────────────────────────
+[tag]
+border = [167, 139, 250, 0.35]
+
+# ── Tabs (Generate · RSS monitor · Publish · About) ─────────────────────────
+[tab]
+selected_border = [167, 139, 250, 0.45]
+font_size       = 0.90
+pad_y           = 0.45
+pad_x           = 1.15
+radius          = 999   # fully rounded tab buttons
+list_radius     = 999   # rounded tab strip
+
+# ── Expander hover ──────────────────────────────────────────────────────────
+[expander]
+hover_text = "#ddd6fe"
+
+# ── Download button ─────────────────────────────────────────────────────────
+[download]
+border       = [167, 139, 250, 0.4]
+border_hover = [167, 139, 250, 0.75]
+
+# ── Result card ─────────────────────────────────────────────────────────────
+[result]
+shadow      = [4, 2, 20, 0.45]
+border_a    = [167, 139, 250, 0.5]
+border_b    = [232, 121, 249, 0.3]
+padding     = "1.8rem 1.6rem"
+margin_top  = 1.4
+title_size  = 1.35
+title_weight = 700
+title_track = -0.01
+
+# ── Scrollbar ───────────────────────────────────────────────────────────────
+[scrollbar]
+thumb       = [167, 139, 250, 0.25]
+thumb_hover = [167, 139, 250, 0.45]
+width       = 10
+
+# ── Page layout ─────────────────────────────────────────────────────────────
+[layout]
+block_pad_top    = 2.2
+block_pad_bottom = 3.2
+max_width        = 880
+mobile_break     = 640
+mobile_pad_x     = 1.0
+hero_mobile_pad  = "1.7rem 1.1rem 1.4rem"
+hero_mobile_title = 1.6
+hero_mobile_sub  = 0.9
+tab_mobile_pad   = "0.4rem 0.8rem"
+tab_mobile_fs    = 0.8
+
+# ── Footer ──────────────────────────────────────────────────────────────────
+[footer]
+size     = 0.78
+pad_top  = 0.4
+
+# ── Metric cards ────────────────────────────────────────────────────────────
+[metric]
+pad        = "0.85rem 1.05rem 0.7rem"
+label_size = 0.66
+label_track = 0.12
+value_size = 1.35

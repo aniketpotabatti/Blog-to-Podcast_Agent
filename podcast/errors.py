@@ -95,25 +95,36 @@ class PublishingError(PodcastError):
     stage = "publishing"
 
 
-_AUTH_MARKERS = (
-    "401",
-    "403",
-    "invalid_api_key",
-    "invalid api key",
-    "unauthorized",
-    "missing_permissions",
-    "permission",
-    "authentication",
-)
-_RATE_MARKERS = ("429", "rate limit", "too many requests", "slow down")
-_QUOTA_MARKERS = ("quota", "insufficient_credits", "credit", "exceeded your current")
-_PAYWALL_MARKERS = (
-    "paywall",
-    "login required",
-    "403 forbidden",
-    "captcha",
-    "not authorized",
-)
+_MARKERS = {
+    "ingestion": {
+        "paywall": (
+            "paywall",
+            "login required",
+            "403 forbidden",
+            "captcha",
+            "not authorized",
+        ),
+    },
+    "common": {
+        "auth": (
+            "401",
+            "403",
+            "invalid_api_key",
+            "invalid api key",
+            "unauthorized",
+            "missing_permissions",
+            "permission",
+            "authentication",
+        ),
+        "rate_limit": ("429", "rate limit", "too many requests", "slow down"),
+        "quota": (
+            "quota",
+            "insufficient_credits",
+            "credit",
+            "exceeded your current",
+        ),
+    },
+}
 
 
 def _matches(text: str, markers: tuple) -> bool:
@@ -137,14 +148,15 @@ def classify_exception(exc: BaseException, stage: str = "pipeline") -> PodcastEr
 
     message = str(exc) or exc.__class__.__name__
 
-    # During ingestion a 403 usually means anti-bot/paywall rather than a bad
-    # credential, so that check has to come first.
-    if stage == "ingestion" and _matches(message, _PAYWALL_MARKERS):
+    # 1. Stage-specific checks (e.g. anti-bot vs bad credentials)
+    if stage == "ingestion" and _matches(message, _MARKERS["ingestion"]["paywall"]):
         return PaywallError(
             f"Content could not be accessed ({message}).",
             hint="Try a publicly accessible source without a login or paywall.",
         )
-    if _matches(message, _AUTH_MARKERS):
+
+    # 2. Common provider errors
+    if _matches(message, _MARKERS["common"]["auth"]):
         return AuthenticationError(
             f"Provider rejected the credential ({message}).",
             hint=(
@@ -153,19 +165,20 @@ def classify_exception(exc: BaseException, stage: str = "pipeline") -> PodcastEr
             ),
             stage=stage,
         )
-    if _matches(message, _QUOTA_MARKERS):
+    if _matches(message, _MARKERS["common"]["quota"]):
         return QuotaError(
             f"Provider quota exhausted ({message}).",
             hint="Top up your account credits or wait for the quota to reset.",
             stage=stage,
         )
-    if _matches(message, _RATE_MARKERS):
+    if _matches(message, _MARKERS["common"]["rate_limit"]):
         return RateLimitError(
             f"Provider rate limit reached ({message}).",
             hint="Wait a few seconds and retry, or lower the request frequency.",
             stage=stage,
         )
 
+    # 3. Fallback to stage default
     defaults = {
         "configuration": ConfigurationError,
         "input": InputError,

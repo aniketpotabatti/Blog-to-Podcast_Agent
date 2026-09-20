@@ -32,7 +32,9 @@ def get_logger(name: str = "") -> logging.Logger:
     return logging.getLogger(f"{LOGGER_NAME}.{name}" if name else LOGGER_NAME)
 
 
-def setup_logging(level: int = logging.INFO, log_to_file: bool = True) -> logging.Logger:
+def setup_logging(
+    level: int = logging.INFO, log_to_file: bool = True
+) -> logging.Logger:
     """Configure console (and optional file) logging exactly once."""
     global _LOGGER_CONFIGURED
     logger = logging.getLogger(LOGGER_NAME)
@@ -67,6 +69,40 @@ def setup_logging(level: int = logging.INFO, log_to_file: bool = True) -> loggin
 # ─────────────────────────────────────────────
 #  Retries
 # ─────────────────────────────────────────────
+def retry(
+    attempts: int = config.MAX_RETRIES,
+    base_delay: float = config.BACKOFF_BASE_SECONDS,
+    max_delay: float = config.BACKOFF_MAX_SECONDS,
+    retry_on: Sequence[type] = (Exception,),
+    give_up_on: Sequence[type] = (),
+    logger: Optional[logging.Logger] = None,
+    description: str = "",
+) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    """Decorator that wraps ``retry_call`` for easier use on functions."""
+
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        from functools import wraps
+
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> T:
+            return retry_call(
+                func,
+                *args,
+                attempts=attempts,
+                base_delay=base_delay,
+                max_delay=max_delay,
+                retry_on=retry_on,
+                give_up_on=give_up_on,
+                logger=logger,
+                description=description,
+                **kwargs,
+            )
+
+        return wrapper
+
+    return decorator
+
+
 def retry_call(
     func: Callable[..., T],
     *args: Any,
@@ -99,7 +135,9 @@ def retry_call(
     label = description or getattr(func, "__name__", "call")
     log = logger or get_logger("retry")
     attempts = max(1, attempts)
-    last_error: Optional[BaseException] = None
+    
+    # Ensure give_up_on always includes KeyboardInterrupt to allow graceful exit
+    give_up_on = tuple(set(give_up_on) | {KeyboardInterrupt})
 
     for attempt in range(1, attempts + 1):
         try:
@@ -107,24 +145,26 @@ def retry_call(
         except give_up_on:
             raise
         except retry_on as exc:  # type: ignore[misc]
-            last_error = exc
             if attempt == attempts:
                 log.error("%s failed after %d attempt(s): %s", label, attempt, exc)
                 raise
+            
+            # Exponential backoff with full jitter
             delay = min(max_delay, base_delay * (2 ** (attempt - 1)))
-            delay += random.uniform(0, delay * 0.25)
+            jittered_delay = random.uniform(0, delay)
+            
             log.warning(
                 "%s failed (attempt %d/%d): %s - retrying in %.1fs",
                 label,
                 attempt,
                 attempts,
                 exc,
-                delay,
+                jittered_delay,
             )
-            sleep(delay)
+            sleep(jittered_delay)
 
-    assert last_error is not None  # pragma: no cover - defensive
-    raise last_error
+    # This part should be unreachable if attempts >= 1
+    raise RuntimeError("Retry loop exhausted unexpectedly.")
 
 
 # ─────────────────────────────────────────────
@@ -138,7 +178,9 @@ def validate_url(raw_url: str) -> str:
     """
     candidate = (raw_url or "").strip()
     if not candidate:
-        raise InputError("Please provide a source URL.", hint="Paste a full https:// link.")
+        raise InputError(
+            "Please provide a source URL.", hint="Paste a full https:// link."
+        )
     if " " in candidate:
         raise InputError(
             f"'{candidate}' is not a valid URL.",
@@ -356,7 +398,9 @@ def to_json(data: Dict[str, Any], indent: int = 2) -> str:
     return json.dumps(data, indent=indent, ensure_ascii=False, default=str)
 
 
-def read_json_file(path: Any, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def read_json_file(
+    path: Any, default: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """Read a JSON file, returning ``default`` when missing or corrupt."""
     try:
         with open(path, "r", encoding="utf-8") as handle:

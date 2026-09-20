@@ -25,8 +25,15 @@ import re
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from podcast import config
+from podcast.config import match_host, resolve_hosts
 from podcast.errors import ConfigurationError, ScriptGenerationError, classify_exception
-from podcast.models import Article, DialogueSegment, EpisodeMetadata, Host, PodcastScript
+from podcast.models import (
+    Article,
+    DialogueSegment,
+    EpisodeMetadata,
+    Host,
+    PodcastScript,
+)
 from podcast.utils import (
     clean_text,
     coerce_str_list,
@@ -147,50 +154,6 @@ def resolve_attempts(attempts: Optional[int] = None) -> int:
 
 
 # ─────────────────────────────────────────────
-#  Hosts
-# ─────────────────────────────────────────────
-def resolve_hosts(style_key: str, hosts: Optional[Sequence[Host]] = None) -> List[Host]:
-    """Return the host list for a style, filling gaps with sensible defaults.
-
-    Solo styles always resolve to exactly one host; multi-host styles pad the
-    supplied list with curated default voices so dialogue keeps distinct voices.
-    """
-    style = config.get_style(style_key)
-    resolved: List[Host] = [host for host in (hosts or []) if host and host.voice_id]
-
-    if not resolved:
-        resolved = [
-            Host(name=voice.name, voice_id=voice.voice_id)
-            for voice in config.default_hosts(style.key)
-        ]
-
-    if style.host_count < 2:
-        return resolved[:1]
-
-    pool = list(config.VOICES)
-    while len(resolved) < style.host_count:
-        fallback_voice = pool[len(resolved) % len(pool)]
-        if fallback_voice.voice_id in {host.voice_id for host in resolved}:
-            fallback_voice = next(
-                (
-                    voice
-                    for voice in pool
-                    if voice.voice_id not in {host.voice_id for host in resolved}
-                ),
-                fallback_voice,
-            )
-        resolved.append(Host(name=fallback_voice.name, voice_id=fallback_voice.voice_id))
-    return resolved[: style.host_count]
-
-
-def _host_roster(hosts: Sequence[Host]) -> str:
-    """Render the host list for a prompt."""
-    return "\n".join(
-        f"- {host.name}{f' ({host.persona})' if host.persona else ''}" for host in hosts
-    )
-
-
-# ─────────────────────────────────────────────
 #  FEATURE 3 & 4: script prompt
 # ─────────────────────────────────────────────
 def build_script_prompt(
@@ -262,28 +225,14 @@ def build_script_prompt(
     return "\n".join(parts)
 
 
+def _host_roster(hosts: Sequence[Host]) -> str:
+    """Format the host roster for the prompt."""
+    return "\n".join([f"- {host.name}: {host.persona}" for host in hosts])
+
+
 # ─────────────────────────────────────────────
 #  FEATURE 4: dialogue parsing
 # ─────────────────────────────────────────────
-def _match_host(speaker: str, hosts: Sequence[Host]) -> Optional[Host]:
-    """Find the host a speaker label refers to.
-
-    Matches the full label first (``Rachel``), then by first token so labels
-    like ``Adam Smith:`` still resolve to the ``Adam`` host.
-    """
-    needle = speaker.strip().lower().rstrip(".,;:")
-    if not needle:
-        return None
-    needle_first = needle.split()[0]
-
-    for host in hosts:
-        if host.name.strip().lower() == needle:
-            return host
-    for host in hosts:
-        name = host.name.strip().lower()
-        if name.split()[0] == needle_first or name == needle_first:
-            return host
-    return None
 
 
 def parse_script(
@@ -307,7 +256,8 @@ def parse_script(
         )
 
     resolved_hosts = list(hosts) or [
-        Host(name=voice.name, voice_id=voice.voice_id) for voice in config.default_hosts(style_key)
+        Host(name=voice.name, voice_id=voice.voice_id)
+        for voice in config.default_hosts(style_key)
     ]
 
     if len(resolved_hosts) < 2:
@@ -329,7 +279,7 @@ def parse_script(
         if not stripped:
             continue
         match = _SPEAKER_LINE_RE.match(stripped)
-        host = _match_host(match.group("speaker"), resolved_hosts) if match else None
+        host = match_host(match.group("speaker"), resolved_hosts) if match else None
 
         if host is not None:
             speech = clean_text(match.group("line"))
@@ -405,7 +355,7 @@ def generate_script(
     )
     script = parse_script(
         raw,
-        resolve_hosts(style.key, hosts),
+        hosts or [],
         language=config.get_language(language).code,
         style_key=style.key,
     )
@@ -526,5 +476,7 @@ def generate_metadata(
         return fallback_metadata(article, language=lang_code)
 
     metadata = metadata_from_raw(raw, article, language=lang_code)
-    LOGGER.info("Episode metadata ready: '%s' (%d tag(s))", metadata.title, len(metadata.tags))
+    LOGGER.info(
+        "Episode metadata ready: '%s' (%d tag(s))", metadata.title, len(metadata.tags)
+    )
     return metadata

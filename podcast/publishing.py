@@ -102,7 +102,9 @@ def publish_to_archive(
                     "size_bytes": len(episode.audio_bytes),
                     "duration_seconds": round(episode.duration_seconds, 1),
                     "source_url": episode.article.url,
-                    "published": episode.created_at.astimezone(timezone.utc).isoformat(),
+                    "published": episode.created_at.astimezone(
+                        timezone.utc
+                    ).isoformat(),
                 },
                 directory=target_dir,
             )
@@ -227,7 +229,9 @@ def build_feed_xml(
     ET.SubElement(channel, _atom("link"), {"rel": "self", "href": channel_link})
 
     if records:
-        ET.SubElement(channel, _itunes("image"), {"href": str(records[0].get("image_url", ""))})
+        ET.SubElement(
+            channel, _itunes("image"), {"href": str(records[0].get("image_url", ""))}
+        )
 
     for record in records[:max_items]:
         item = ET.SubElement(channel, "item")
@@ -258,7 +262,9 @@ def build_feed_xml(
 
         tags = record.get("tags") or []
         if isinstance(tags, list) and tags:
-            ET.SubElement(item, _itunes("keywords")).text = ",".join(str(tag) for tag in tags)
+            ET.SubElement(item, _itunes("keywords")).text = ",".join(
+                str(tag) for tag in tags
+            )
 
         source = str(record.get("source_url") or "").strip()
         if source:
@@ -306,9 +312,7 @@ def publish_to_rss(
 
     message = f"Feed updated with {len(records)} episode(s)"
     if not base_url:
-        message += (
-            " - set a public base URL so Spotify can reach the MP3 files"
-        )
+        message += " - set a public base URL so Spotify can reach the MP3 files"
     LOGGER.info("RSS feed written to %s (%d episode(s))", target_feed, len(records))
     return PublishResult(
         platform="rss",
@@ -519,7 +523,9 @@ def build_youtube_video(
                 handle.write(cover_bytes)
             base = ImageClip(cover_path).with_duration(audio.duration).resized(size)
         else:
-            base = ColorClip(size=size, color=(15, 12, 41)).with_duration(audio.duration)
+            base = ColorClip(size=size, color=(15, 12, 41)).with_duration(
+                audio.duration
+            )
 
         video = base.with_audio(audio)
         video.write_videofile(
@@ -582,8 +588,10 @@ def upload_to_youtube(
         refresh_token=refresh_token,
     )
 
-    video = video_bytes if video_bytes is not None else build_youtube_video(
-        episode, cover_bytes=cover_bytes
+    video = (
+        video_bytes
+        if video_bytes is not None
+        else build_youtube_video(episode, cover_bytes=cover_bytes)
     )
 
     import tempfile
@@ -592,7 +600,9 @@ def upload_to_youtube(
         "snippet": {
             "title": (title or episode.metadata.title or "Podcast episode")[:100],
             "description": (description or episode.metadata.description)[:5000],
-            "tags": (tags or episode.metadata.tags or list(config.YOUTUBE_DEFAULT_TAGS))[:30],
+            "tags": (
+                tags or episode.metadata.tags or list(config.YOUTUBE_DEFAULT_TAGS)
+            )[:30],
             "categoryId": config.YOUTUBE_CATEGORY_ID,
         },
         "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False},
@@ -603,6 +613,7 @@ def upload_to_youtube(
         temp_path = handle.name
 
     try:
+
         def _upload() -> Any:
             media = MediaFileUpload(temp_path, mimetype="video/mp4", resumable=True)
             request = youtube.videos().insert(
@@ -732,7 +743,9 @@ def publish_episode(
     Returns:
         One :class:`PublishResult` per destination, in the order requested.
     """
-    keys = [platform_keys] if isinstance(platform_keys, str) else list(platform_keys or [])
+    keys = (
+        [platform_keys] if isinstance(platform_keys, str) else list(platform_keys or [])
+    )
     results: List[PublishResult] = []
     for key in keys:
         result = publish_one(

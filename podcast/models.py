@@ -51,7 +51,7 @@ class Article:
         return f"{self.kind.value.upper()} document"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Host:
     """A podcast speaker: display name, persona brief and ElevenLabs voice."""
 
@@ -106,7 +106,7 @@ class PodcastScript:
         return estimate_speech_seconds(self.narration_text)
 
 
-@dataclass
+@dataclass(frozen=True)
 class EpisodeMetadata:
     """Episode title, description and tags derived from the source article."""
 
@@ -121,7 +121,7 @@ class EpisodeMetadata:
         return slugify(self.title) or "podcast-episode"
 
 
-@dataclass
+@dataclass(frozen=True)
 class PublishResult:
     """Outcome of a single publishing attempt."""
 
@@ -178,7 +178,7 @@ class EpisodeResult:
         }
 
 
-@dataclass
+@dataclass(frozen=True)
 class FeedEntry:
     """A single item discovered in an RSS/Atom feed."""
 
@@ -193,7 +193,7 @@ class FeedEntry:
         return self.guid or self.link or self.title
 
 
-@dataclass
+@dataclass(frozen=True)
 class PipelineOptions:
     """User-selected options controlling a single pipeline run."""
 

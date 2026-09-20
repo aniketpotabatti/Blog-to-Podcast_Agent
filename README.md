@@ -17,8 +17,15 @@ https://github.com/user-attachments/assets/9fee086b-707b-4d90-a420-8e59f9e65689
 
 - **Sleek UI/UX:** A premium, fully responsive dark-themed glassmorphism interface.
 - **Intelligent Web Scraping:** Uses Firecrawl to accurately extract content from any blog or article URL.
-- **Smart Summarization:** Leverages Google Gemini via an Agno Agent to digest the article into a conversational, podcast-ready script (under 2,000 characters).
+- **Smart Summarization:** Leverages Google Gemini via an Agno Agent to digest the article into a conversational, podcast-ready script.
 - **Ultra-Realistic Voice Synthesis:** Uses ElevenLabs' cutting-edge TTS models to generate a high-quality audio podcast.
+- **PDF & Research Paper Ingestion:** Supports direct upload or URL-based PDF parsing.
+- **RSS Feed Monitoring:** Automatic generation of episodes from new RSS feed entries.
+- **Multilingual Support:** Supports 15 languages, automatically selecting the appropriate voice model.
+- **Multi-host Dialogue:** Generates conversational scripts for two-host podcasts.
+- **Background Music:** Automatically mixes intro/outro stings and continuous underlays.
+- **Automatic Metadata:** Generates titles, descriptions, and tags.
+- **Publishing:** Direct publishing to platforms (RSS, YouTube, Webhooks).
 - **Listen & Download:** Instantly play the generated podcast in your browser or download it as an `.mp3` file.
 
 ---
@@ -40,13 +47,13 @@ https://github.com/user-attachments/assets/9fee086b-707b-4d90-a420-8e59f9e65689
 Ensure you have Python 3.9+ installed. You will also need API keys for the following services:
 1. **Google Gemini API Key**
 2. **Firecrawl API Key**
-3. **ElevenLabs API Key** *(Note: Ensure your ElevenLabs API key has `text_to_speech` permissions enabled on your account tier)*
+3. **ElevenLabs API Key**
 
 ### Installation
 
 1. **Clone or download this repository** and navigate to the project directory:
    ```bash
-   cd "Blog to Podcasts agent"
+   cd "Blog-to-Podcast_Agent"
    ```
 
 2. **Create a virtual environment** (recommended):
@@ -59,11 +66,9 @@ Ensure you have Python 3.9+ installed. You will also need API keys for the follo
    ```
 
 3. **Install the required dependencies**:
-   *(Assuming requirements are saved in a `requirements.txt` file)*
    ```bash
    pip install -r requirements.txt
    ```
-   *Core dependencies typically include:* `streamlit`, `agno`, `google-genai`, `firecrawl-py`, `elevenlabs`.
 
 ### Running the App
 
@@ -74,7 +79,7 @@ Ensure you have Python 3.9+ installed. You will also need API keys for the follo
 2. The application will open in your default web browser (typically at `http://localhost:8501`).
 3. Enter your API keys in the left sidebar.
 4. Paste a blog URL into the main input field.
-5. Click **"✨ Generate Podcast"** and wait for the magic to happen!
+5. Click **"✨ Generate podcast"** and wait for the magic to happen!
 
 ---
 
@@ -92,9 +97,9 @@ Ensure you have Python 3.9+ installed. You will also need API keys for the follo
 This project is licensed under the MIT License.
 
 ---
-<!--
-## 🛣️ Future Roadmap & Feature Suggestions
 
+## 🛣️ Future Roadmap & Feature Suggestions
+<!--
 To build a truly robust, scalable, and production-grade "Blog to Podcast" agent suited for 2026 and beyond, consider the following roadmap items and improvements:
 
 ### Scalability & Deployment
@@ -155,13 +160,13 @@ To build a truly robust, scalable, and production-grade "Blog to Podcast" agent 
 - Docker support and anti-bot fallback for tough-to-scrape sites.
 - Async background jobs, quotas, and rate limits for scaling to more users.
 -->
-- PDF/research paper ingestion, not just blogs.
-- RSS feed monitoring for automatic podcast creation.
-- Multilingual podcast support.
-- Multi-host/AI dialogue generation for conversational episodes.
-- Background music (intro/outro/underlay).
-- Automatic episode title and description generation.
-- One-click publishing to Spotify, YouTube, and other podcast platforms.
+- ✅ PDF/research paper ingestion, not just blogs.
+- ✅ RSS feed monitoring for automatic podcast creation.
+- ✅ Multilingual podcast support.
+- ✅ Multi-host/AI dialogue generation for conversational episodes.
+- ✅ Background music (intro/outro/underlay).
+- ✅ Automatic episode title and description generation.
+- ✅ One-click publishing to Spotify, YouTube, and other podcast platforms.
 
 ---
 

@@ -67,7 +67,9 @@ def decode_audio(data: bytes, *, target_rate: int = 0) -> AudioBuffer:
             hint="Generate the narration before adding music.",
         )
     try:
-        samples, sample_rate = sf.read(io.BytesIO(data), dtype="float32", always_2d=False)
+        samples, sample_rate = sf.read(
+            io.BytesIO(data), dtype="float32", always_2d=False
+        )
     except Exception as exc:
         raise AudioProcessingError(
             f"Could not decode the audio ({exc}).",
@@ -161,7 +163,13 @@ def peak_dbfs(samples: np.ndarray) -> float:
     return 20.0 * float(np.log10(peak))
 
 
-def fade(samples: np.ndarray, sample_rate: int, *, fade_in: float = 0.0, fade_out: float = 0.0) -> np.ndarray:
+def fade(
+    samples: np.ndarray,
+    sample_rate: int,
+    *,
+    fade_in: float = 0.0,
+    fade_out: float = 0.0,
+) -> np.ndarray:
     """Apply linear fade-in and fade-out ramps to a buffer."""
     array = np.array(samples, dtype="float32", copy=True)
     total = array.size
@@ -178,7 +186,9 @@ def fade(samples: np.ndarray, sample_rate: int, *, fade_in: float = 0.0, fade_ou
     return array
 
 
-def slice_seconds(samples: np.ndarray, sample_rate: int, start: float, length: float) -> np.ndarray:
+def slice_seconds(
+    samples: np.ndarray, sample_rate: int, start: float, length: float
+) -> np.ndarray:
     """Take ``length`` seconds from ``start`` (clamped to the buffer)."""
     array = np.asarray(samples, dtype="float32")
     if sample_rate <= 0 or array.size == 0 or length <= 0:
@@ -188,7 +198,9 @@ def slice_seconds(samples: np.ndarray, sample_rate: int, start: float, length: f
     return array[begin : begin + count]
 
 
-def loop_or_trim(samples: np.ndarray, sample_rate: int, target_seconds: float) -> np.ndarray:
+def loop_or_trim(
+    samples: np.ndarray, sample_rate: int, target_seconds: float
+) -> np.ndarray:
     """Repeat or trim a buffer so it lasts exactly ``target_seconds``."""
     if sample_rate <= 0 or target_seconds <= 0:
         return np.zeros(0, dtype="float32")
@@ -202,7 +214,9 @@ def loop_or_trim(samples: np.ndarray, sample_rate: int, target_seconds: float) -
     return np.tile(array, repeats)[:target]
 
 
-def mix_tracks(base: np.ndarray, overlay: np.ndarray, *, gain_db: float = 0.0) -> np.ndarray:
+def mix_tracks(
+    base: np.ndarray, overlay: np.ndarray, *, gain_db: float = 0.0
+) -> np.ndarray:
     """Mix an overlay track onto a base track of the same length."""
     first = np.asarray(base, dtype="float32")
     second = np.asarray(overlay, dtype="float32")
@@ -240,6 +254,7 @@ class MusicMixReport:
     """Summary of what the music mixer did, used for logging and the UI."""
 
     applied: bool
+    preset_key: str = "none"
     intro_seconds: float = 0.0
     outro_seconds: float = 0.0
     underlay_seconds: float = 0.0
@@ -342,7 +357,9 @@ def build_music_bed(
         except OSError as exc:  # pragma: no cover - read-only filesystem
             LOGGER.warning("Could not cache music bed: %s", exc)
 
-    LOGGER.info("Generated music bed for preset '%s' (%d bytes)", preset.key, len(audio))
+    LOGGER.info(
+        "Generated music bed for preset '%s' (%d bytes)", preset.key, len(audio)
+    )
     return audio
 
 
@@ -408,7 +425,11 @@ def apply_music_preset(
         outro = slice_seconds(bed_samples, sample_rate, start, outro_seconds)
         segments.append(fade(outro, sample_rate, fade_in=fade_seconds))
 
-    combined = np.concatenate([segment for segment in segments if segment.size]) if segments else speech_samples
+    combined = (
+        np.concatenate([segment for segment in segments if segment.size])
+        if segments
+        else speech_samples
+    )
     combined = normalize_peak(combined, target_dbfs=-1.0)
 
     try:

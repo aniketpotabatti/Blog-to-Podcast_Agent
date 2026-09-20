@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import io
 
 import numpy as np
 import pytest
-import soundfile as sf
 
 from podcast import config
 from podcast.audio import (
@@ -119,7 +117,9 @@ class TestDspHelpers:
         assert db_to_gain(-6) == pytest.approx(0.501, abs=0.01)
 
     def test_apply_gain_scales_samples(self):
-        assert np.allclose(apply_gain(np.ones(4, dtype="float32"), -6), 0.501, atol=0.01)
+        assert np.allclose(
+            apply_gain(np.ones(4, dtype="float32"), -6), 0.501, atol=0.01
+        )
 
     def test_peak_dbfs_of_silence(self):
         assert peak_dbfs(np.zeros(10, dtype="float32")) == float("-inf")
@@ -167,7 +167,9 @@ class TestDspHelpers:
 
     def test_normalize_peak(self):
         loud = np.array([0.5, -0.25], dtype="float32")
-        assert peak_dbfs(normalize_peak(loud, target_dbfs=-1.0)) == pytest.approx(-1.0, abs=0.01)
+        assert peak_dbfs(normalize_peak(loud, target_dbfs=-1.0)) == pytest.approx(
+            -1.0, abs=0.01
+        )
 
     def test_normalize_peak_ignores_silence(self):
         assert normalize_peak(np.zeros(4, dtype="float32")).size == 4
@@ -263,8 +265,12 @@ class TestApplyMusicPreset:
 
     def test_intro_and_outro_extend_the_episode(self, narration, music):
         preset = MusicPreset(
-            key="test_stings", label="Test", description="", prompt="x",
-            intro_seconds=2.0, outro_seconds=2.0,
+            key="test_stings",
+            label="Test",
+            description="",
+            prompt="x",
+            intro_seconds=2.0,
+            outro_seconds=2.0,
         )
         audio, report = apply_music_preset(narration, preset, music=music)
         assert report.applied is True
@@ -276,8 +282,12 @@ class TestApplyMusicPreset:
 
     def test_underlay_keeps_the_original_duration(self, narration, music):
         preset = MusicPreset(
-            key="test_bed", label="Test", description="", prompt="x",
-            underlay=True, underlay_gain_db=-24.0,
+            key="test_bed",
+            label="Test",
+            description="",
+            prompt="x",
+            underlay=True,
+            underlay_gain_db=-24.0,
         )
         audio, report = apply_music_preset(narration, preset, music=music)
         assert report.applied is True
@@ -287,23 +297,36 @@ class TestApplyMusicPreset:
 
     def test_underlay_and_stings_combine(self, narration, music):
         preset = MusicPreset(
-            key="test_full", label="Test", description="", prompt="x",
-            intro_seconds=1.0, outro_seconds=1.0, underlay=True,
+            key="test_full",
+            label="Test",
+            description="",
+            prompt="x",
+            intro_seconds=1.0,
+            outro_seconds=1.0,
+            underlay=True,
         )
         audio, report = apply_music_preset(narration, preset, music=music)
         assert report.applied is True
-        assert duration_of(audio) == pytest.approx(self.NARRATION_SECONDS + 2.0, abs=0.4)
+        assert duration_of(audio) == pytest.approx(
+            self.NARRATION_SECONDS + 2.0, abs=0.4
+        )
 
     def test_output_is_decodable_mp3(self, narration, music):
-        audio, _ = apply_music_preset(narration, get_music_preset("upbeat"), music=music)
+        audio, _ = apply_music_preset(
+            narration, get_music_preset("upbeat"), music=music
+        )
         decoded = decode_audio(audio)
         assert decoded.duration > self.NARRATION_SECONDS  # stings were added
         assert decoded.samples.size > 0
 
     def test_music_shorter_than_sting_is_handled(self, narration):
         preset = MusicPreset(
-            key="test_short", label="Test", description="", prompt="x",
-            intro_seconds=5.0, outro_seconds=5.0,
+            key="test_short",
+            label="Test",
+            description="",
+            prompt="x",
+            intro_seconds=5.0,
+            outro_seconds=5.0,
         )
         audio, report = apply_music_preset(
             narration, preset, music=make_mp3_bytes(0.2, frequency=200.0)
@@ -313,7 +336,9 @@ class TestApplyMusicPreset:
 
     def test_corrupt_narration_is_returned_untouched(self, music):
         broken = b"not audio at all"
-        audio, report = apply_music_preset(broken, get_music_preset("upbeat"), music=music)
+        audio, report = apply_music_preset(
+            broken, get_music_preset("upbeat"), music=music
+        )
         assert audio == broken
         assert report.applied is False
 
@@ -325,5 +350,7 @@ class TestApplyMusicPreset:
         assert report.applied is False
 
     def test_peak_is_normalized(self, narration, music):
-        audio, _ = apply_music_preset(narration, get_music_preset("upbeat"), music=music)
+        audio, _ = apply_music_preset(
+            narration, get_music_preset("upbeat"), music=music
+        )
         assert peak_dbfs(decode_audio(audio).samples) < 0.0

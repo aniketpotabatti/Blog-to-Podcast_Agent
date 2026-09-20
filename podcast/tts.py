@@ -89,6 +89,8 @@ def _call_with_retries(
 ) -> bytes:
     """Run a synthesis call with retries, mapping failures to typed errors."""
     try:
+        # We still use retry_call directly here because we need to wrap the
+        # SDK response normalization in the same retry loop.
         stream = retry_call(
             func,
             attempts=attempts if attempts and attempts > 0 else config.TTS_MAX_RETRIES,

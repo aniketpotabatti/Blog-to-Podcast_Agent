@@ -31,7 +31,9 @@ from tests.conftest import make_mp3_bytes
 ITUNES_NS = "{http://www.itunes.com/dtds/podcast-1.0.dtd}"
 
 
-def make_episode(*, with_audio: bool = True, title: str = "AI Teams Explained") -> EpisodeResult:
+def make_episode(
+    *, with_audio: bool = True, title: str = "AI Teams Explained"
+) -> EpisodeResult:
     """Build an EpisodeResult for publishing tests."""
     article = Article(
         text="Body text " * 20,
@@ -65,7 +67,9 @@ class TestArchivePublishing:
         assert result.ok is True
         assert result.platform == "archive"
         mp3_files = list(tmp_path.glob("*.mp3"))
-        sidecars = [path for path in tmp_path.glob("*.json") if path.name != "feed.json"]
+        sidecars = [
+            path for path in tmp_path.glob("*.json") if path.name != "feed.json"
+        ]
         assert len(mp3_files) == 1 and len(sidecars) == 1
         assert mp3_files[0].read_bytes() == episode.audio_bytes
 
@@ -249,20 +253,28 @@ class TestWebhookPublishing:
 
     def test_omits_file_when_there_is_no_audio(self):
         session = FakeWebhookSession()
-        publish_to_webhook(make_episode(with_audio=False), "https://hooks.example.com/x", session=session)
+        publish_to_webhook(
+            make_episode(with_audio=False),
+            "https://hooks.example.com/x",
+            session=session,
+        )
         assert "files" not in session.calls[0][1]
 
     def test_response_url_is_captured(self):
         session = FakeWebhookSession(
             FakeResponse(payload={"url": "https://example.com/uploaded"})
         )
-        result = publish_to_webhook(make_episode(), "https://hooks.example.com/x", session=session)
+        result = publish_to_webhook(
+            make_episode(), "https://hooks.example.com/x", session=session
+        )
         assert result.url == "https://example.com/uploaded"
 
     def test_error_status_is_typed(self):
         session = FakeWebhookSession(FakeResponse(status_code=500))
         with pytest.raises(PublishingError):
-            publish_to_webhook(make_episode(), "https://hooks.example.com/x", session=session)
+            publish_to_webhook(
+                make_episode(), "https://hooks.example.com/x", session=session
+            )
 
     def test_invalid_url_is_rejected_before_posting(self):
         session = FakeWebhookSession()
@@ -312,7 +324,9 @@ class TestYouTubePublishing:
     """YouTube uploads are driven through an injected client."""
 
     def test_uploads_video_and_returns_watch_url(self, monkeypatch):
-        monkeypatch.setattr("podcast.publishing.MediaFileUpload", lambda *a, **k: object())
+        monkeypatch.setattr(
+            "podcast.publishing.MediaFileUpload", lambda *a, **k: object()
+        )
         client = FakeYouTubeClient()
         result = upload_to_youtube(make_episode(), client=client, video_bytes=b"MP4")
 
@@ -321,7 +335,9 @@ class TestYouTubePublishing:
         assert result.location == "abc123"
 
     def test_upload_body_carries_metadata(self, monkeypatch):
-        monkeypatch.setattr("podcast.publishing.MediaFileUpload", lambda *a, **k: object())
+        monkeypatch.setattr(
+            "podcast.publishing.MediaFileUpload", lambda *a, **k: object()
+        )
         client = FakeYouTubeClient()
         upload_to_youtube(make_episode(), client=client, video_bytes=b"MP4")
 
@@ -331,25 +347,36 @@ class TestYouTubePublishing:
         assert body["status"]["privacyStatus"] == config.YOUTUBE_PRIVACY_STATUS
 
     def test_privacy_can_be_overridden(self, monkeypatch):
-        monkeypatch.setattr("podcast.publishing.MediaFileUpload", lambda *a, **k: object())
+        monkeypatch.setattr(
+            "podcast.publishing.MediaFileUpload", lambda *a, **k: object()
+        )
         client = FakeYouTubeClient()
         upload_to_youtube(
             make_episode(), client=client, video_bytes=b"MP4", privacy="public"
         )
-        assert client.videos_resource.calls[0]["body"]["status"]["privacyStatus"] == "public"
+        assert (
+            client.videos_resource.calls[0]["body"]["status"]["privacyStatus"]
+            == "public"
+        )
 
     def test_missing_audio_is_rejected(self):
         with pytest.raises(PublishingError):
-            upload_to_youtube(make_episode(with_audio=False), client=FakeYouTubeClient())
+            upload_to_youtube(
+                make_episode(with_audio=False), client=FakeYouTubeClient()
+            )
 
     def test_response_without_id_is_rejected(self, monkeypatch):
-        monkeypatch.setattr("podcast.publishing.MediaFileUpload", lambda *a, **k: object())
+        monkeypatch.setattr(
+            "podcast.publishing.MediaFileUpload", lambda *a, **k: object()
+        )
         client = FakeYouTubeClient(response={})
         with pytest.raises(PublishingError):
             upload_to_youtube(make_episode(), client=client, video_bytes=b"MP4")
 
     def test_upload_failure_is_typed(self, monkeypatch):
-        monkeypatch.setattr("podcast.publishing.MediaFileUpload", lambda *a, **k: object())
+        monkeypatch.setattr(
+            "podcast.publishing.MediaFileUpload", lambda *a, **k: object()
+        )
         monkeypatch.setattr(config, "MAX_RETRIES", 1)
         client = FakeYouTubeClient(error=RuntimeError("quotaExceeded"))
         with pytest.raises(Exception):
@@ -417,7 +444,9 @@ class TestPublishDispatcher:
         assert results[1].ok is True
 
     def test_labels_are_accepted_as_well_as_keys(self, tmp_path):
-        result = publish_one(make_episode(), config.PLATFORM_LABELS[0], directory=tmp_path)
+        result = publish_one(
+            make_episode(), config.PLATFORM_LABELS[0], directory=tmp_path
+        )
         assert result.ok is True
 
     def test_empty_selection_returns_no_results(self):

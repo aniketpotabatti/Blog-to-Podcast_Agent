@@ -15,7 +15,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-def make_mp3_bytes(seconds: float = 1.0, frequency: float = 440.0, rate: int = 44100) -> bytes:
+def make_mp3_bytes(
+    seconds: float = 1.0, frequency: float = 440.0, rate: int = 44100
+) -> bytes:
     """Build a small mono MP3 payload for audio tests."""
     samples = np.linspace(0, seconds, int(rate * seconds), endpoint=False)
     wave = 0.2 * np.sin(2 * np.pi * frequency * samples)
